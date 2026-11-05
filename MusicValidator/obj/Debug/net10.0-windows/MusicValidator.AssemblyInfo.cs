@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MusicValidator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5046a2fbbf916ff4e6773d4f62f1e6ad1e168ea4")]
 [assembly: System.Reflection.AssemblyProductAttribute("MusicValidator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MusicValidator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -13,6 +13,7 @@
   <Grid Margin="24">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
@@ -26,8 +27,12 @@
       </WrapPanel>
     </StackPanel>
 
+    <WrapPanel x:Name="EvidencePanel"
+               Grid.Row="1"
+               Margin="0,0,0,12" />
+
     <DataGrid x:Name="SongsGrid"
-              Grid.Row="1"
+              Grid.Row="2"
               AutoGenerateColumns="False"
               IsReadOnly="True"
               CanUserAddRows="False"
@@ -54,7 +59,7 @@
       </DataGrid.Columns>
     </DataGrid>
 
-    <Grid Grid.Row="2" Margin="0,18,0,0">
+    <Grid Grid.Row="3" Margin="0,18,0,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />

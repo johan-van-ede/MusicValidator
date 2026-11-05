@@ -1,26 +1,39 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Security;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Microsoft.Win32;
 
 namespace MusicValidator;
 
 public partial class MainWindow : Window
 {
+    private static readonly Regex NumberTokenRegex = new(@"\d+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly ObservableCollection<MusicTrack> _musicTracks = [];
     private readonly ObservableCollection<PurchaseRecord> _purchases = [];
+    private readonly ICollectionView _musicView;
+    private readonly HashSet<string> _assignedSongPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _validatedSongPaths = new(StringComparer.OrdinalIgnoreCase);
     private AppSettings _settings = new();
+    private ListSortDirection _folderPathSortDirection = ListSortDirection.Ascending;
+    private int _validatedTrackCount;
     private string? _selectedFolder;
 
     public MainWindow()
     {
         InitializeComponent();
-        MusicGrid.ItemsSource = _musicTracks;
+        _musicView = CollectionViewSource.GetDefaultView(_musicTracks);
+        SortMusicByFolderPath(_folderPathSortDirection);
+        MusicGrid.ItemsSource = _musicView;
         PurchasesGrid.ItemsSource = _purchases;
+        UpdateMusicCount();
+        UpdateValidationMetric();
 
         try
         {
@@ -122,14 +135,14 @@ public partial class MainWindow : Window
 
     private void AddPurchase_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddPurchaseWindow { Owner = this };
+        var dialog = new AddPurchaseWindow(_purchases.Select(purchase => purchase.Store)) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.Purchase is not PurchaseRecord purchase)
         {
             return;
         }
 
         var updatedPurchases = _purchases.Prepend(purchase).ToList();
-        if (!TrySavePurchases(updatedPurchases))
+        if (!TrySavePurchases(updatedPurchases, purchase))
         {
             return;
         }
@@ -162,15 +175,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var updatedPurchases = _purchases
-            .Where(item => item.Id != purchase.Id)
-            .ToList();
-        if (!TrySavePurchases(updatedPurchases))
+        if (!TryDeletePurchase(purchase))
         {
             return;
         }
 
         _purchases.Remove(purchase);
+        RebuildAssignedSongPaths();
         UpdatePurchaseCount();
         StatusText.Text = $"Purchase from {purchase.Store} removed.";
     }
@@ -179,8 +190,46 @@ public partial class MainWindow : Window
     {
         if (sender is Button { Tag: PurchaseRecord purchase })
         {
-            new PurchaseDetailsWindow(purchase, SavePurchaseSongs) { Owner = this }.ShowDialog();
+            new PurchaseDetailsWindow(
+                purchase,
+                SavePurchaseSongs,
+                _settings.PurchaseStorageFolder) { Owner = this }.ShowDialog();
         }
+    }
+
+    private void PurchaseValidationStatus_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: PurchaseRecord purchase })
+        {
+            return;
+        }
+
+        var dialog = new AddPurchaseWindow(_purchases.Select(item => item.Store), purchase) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Purchase is not PurchaseRecord updatedPurchase)
+        {
+            return;
+        }
+
+        var purchaseIndex = _purchases.IndexOf(purchase);
+        if (purchaseIndex < 0)
+        {
+            return;
+        }
+
+        var updatedPurchases = _purchases
+            .Select(item => ReferenceEquals(item, purchase) ? updatedPurchase : item)
+            .ToList();
+        if (!TrySavePurchases(updatedPurchases, updatedPurchase))
+        {
+            return;
+        }
+
+        _purchases[purchaseIndex] = updatedPurchase;
+        PurchasesGrid.SelectedItem = updatedPurchase;
+        RebuildAssignedSongPaths();
+        UpdatePurchaseCount();
+        PurchasesGrid.Items.Refresh();
+        StatusText.Text = $"{purchase.Store}: {updatedPurchase.ValidationStatus}.";
     }
 
     private void MusicGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -188,10 +237,30 @@ public partial class MainWindow : Window
         AssignToPurchaseButton.IsEnabled = MusicGrid.SelectedItems.Count > 0;
     }
 
+    private void ToggleFolderPathSort_Click(object sender, RoutedEventArgs e)
+    {
+        var direction = _folderPathSortDirection == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        SortMusicByFolderPath(direction);
+    }
+
     private void AssignToPurchase_Click(object sender, RoutedEventArgs e)
     {
-        var songs = MusicGrid.SelectedItems
-            .OfType<MusicTrack>()
+        AssignTracksToPurchase(MusicGrid.SelectedItems.OfType<MusicTrack>().ToList());
+    }
+
+    private void TrackStatus_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: MusicTrack track })
+        {
+            AssignTracksToPurchase([track]);
+        }
+    }
+
+    private void AssignTracksToPurchase(IReadOnlyList<MusicTrack> selectedTracks)
+    {
+        var songs = selectedTracks
             .Select(PurchaseSong.FromTrack)
             .ToList();
         if (songs.Count == 0)
@@ -228,7 +297,7 @@ public partial class MainWindow : Window
             ? _purchases.Prepend(purchase).ToList()
             : _purchases.ToList();
 
-        if (!TrySavePurchases(purchasesToSave))
+        if (!TrySavePurchases(purchasesToSave, purchase))
         {
             purchase.Songs = originalSongs;
             return;
@@ -239,8 +308,10 @@ public partial class MainWindow : Window
             _purchases.Insert(0, purchase);
         }
 
+        RebuildAssignedSongPaths();
         UpdatePurchaseCount();
         PurchasesGrid.Items.Refresh();
+        UpdateValidationMetric();
         StatusText.Text = $"{newSongs.Count:N0} songs assigned to {purchase.Store}.";
     }
 
@@ -277,7 +348,10 @@ public partial class MainWindow : Window
     {
         _selectedFolder = folderPath;
         _musicTracks.Clear();
-        MusicCount.Text = "0 tracks";
+        _validatedTrackCount = 0;
+        UpdateMusicCount();
+        UpdateValidationMetric();
+        MusicGrid.UnselectAll();
         MusicFolderText.Text = folderPath;
         MusicFolderText.ToolTip = folderPath;
         OpenFolderButton.IsEnabled = false;
@@ -308,20 +382,32 @@ public partial class MainWindow : Window
 
             await foreach (var track in channel.Reader.ReadAllAsync())
             {
-                _musicTracks.Add(track);
-                MusicCount.Text = $"{_musicTracks.Count:N0} tracks";
-                if (_musicTracks.Count % 10 == 0)
+                var displayedTrack = track;
+                if (_validatedSongPaths.Contains(track.FilePath))
                 {
-                    StatusText.Text = $"{_musicTracks.Count:N0} audio files loaded; scanning continues...";
+                    displayedTrack = track with { Status = "Validated" };
                 }
+                else if (_assignedSongPaths.Contains(track.FilePath))
+                {
+                    displayedTrack = track with { Status = "Assigned" };
+                }
+
+                _musicTracks.Add(displayedTrack);
+                if (displayedTrack.IsValidated)
+                {
+                    _validatedTrackCount++;
+                }
+
+                UpdateMusicCount();
+                UpdateValidationMetric();
             }
 
             await producer;
 
             var failedMetadata = _musicTracks.Count(track => track.MetadataError is not null);
             StatusText.Text = failedMetadata == 0
-                ? $"{_musicTracks.Count:N0} audio files loaded."
-                : $"{_musicTracks.Count:N0} audio files loaded; metadata could not be read for {failedMetadata:N0}. Hover a row for details.";
+                ? "Scan complete."
+                : $"Scan complete; metadata could not be read for {failedMetadata:N0} tracks.";
         }
         catch (SecurityException exception)
         {
@@ -365,9 +451,56 @@ public partial class MainWindow : Window
             new ParallelOptions { MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4) },
             async (filePath, cancellationToken) =>
             {
-                var track = MusicTrackReader.Read(filePath);
+                var relativePath = Path.GetRelativePath(folderPath, filePath);
+                var track = MusicTrackReader.Read(filePath) with
+                {
+                    RelativePath = relativePath,
+                    FolderOrderKey = CreateFolderOrderKey(relativePath)
+                };
                 await writer.WriteAsync(track, cancellationToken);
             });
+    }
+
+    private void SortMusicByFolderPath(ListSortDirection direction)
+    {
+        _folderPathSortDirection = direction;
+        _musicView.SortDescriptions.Clear();
+        _musicView.SortDescriptions.Add(
+            new SortDescription(nameof(MusicTrack.FolderOrderKey), direction));
+        _musicView.Refresh();
+        PathSortButton.ToolTip =
+            $"Sort by relative folder path ({direction.ToString().ToLowerInvariant()}); click to reverse";
+    }
+
+    private void UpdateMusicCount()
+    {
+        MusicCount.Text = $"{_musicTracks.Count:N0} tracks";
+    }
+
+    private void UpdateValidationMetric()
+    {
+        var validationRate = _musicTracks.Count == 0
+            ? 0
+            : _validatedTrackCount / (double)_musicTracks.Count;
+        ValidationMetricText.Text = $"Validated {validationRate:P0}";
+    }
+
+    private static string CreateFolderOrderKey(string relativePath)
+    {
+        var normalizedPath = relativePath
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/')
+            .ToUpperInvariant();
+        return NumberTokenRegex.Replace(normalizedPath, match =>
+        {
+            var significantDigits = match.Value.TrimStart('0');
+            if (significantDigits.Length == 0)
+            {
+                significantDigits = "0";
+            }
+
+            return $"{significantDigits.Length:D10}:{significantDigits}:{match.Value.Length:D10}";
+        });
     }
 
     private void ShowScanError(string folderPath, Exception exception)
@@ -415,6 +548,10 @@ public partial class MainWindow : Window
         {
             purchases = PurchaseStore.Load(folderPath);
             return true;
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowPurchaseLoadError(exception);
         }
         catch (JsonException exception)
         {
@@ -468,14 +605,50 @@ public partial class MainWindow : Window
             _purchases.Add(purchase);
         }
 
+        RebuildAssignedSongPaths();
         UpdatePurchaseCount();
+    }
+
+    private void RebuildAssignedSongPaths()
+    {
+        _assignedSongPaths.Clear();
+        _validatedSongPaths.Clear();
+        foreach (var purchase in _purchases)
+        {
+            foreach (var song in purchase.Songs)
+            {
+                _assignedSongPaths.Add(song.FilePath);
+                if (purchase.IsValidated)
+                {
+                    _validatedSongPaths.Add(song.FilePath);
+                }
+            }
+        }
+
+        for (var index = 0; index < _musicTracks.Count; index++)
+        {
+            var track = _musicTracks[index];
+            var status = _validatedSongPaths.Contains(track.FilePath)
+                ? "Validated"
+                : _assignedSongPaths.Contains(track.FilePath) ? "Assigned" : "Unvalidated";
+            if (!string.Equals(track.Status, status, StringComparison.Ordinal))
+            {
+                _musicTracks[index] = track with { Status = status };
+            }
+        }
+
+        _validatedTrackCount = _musicTracks.Count(track => track.IsValidated);
+        UpdateValidationMetric();
     }
 
     private void ClearMusicFolder()
     {
         _selectedFolder = null;
         _musicTracks.Clear();
-        MusicCount.Text = "0 tracks";
+        _validatedTrackCount = 0;
+        SortMusicByFolderPath(ListSortDirection.Ascending);
+        UpdateMusicCount();
+        UpdateValidationMetric();
         MusicFolderText.Text = "No folder selected yet.";
         MusicFolderText.ToolTip = null;
         StatusText.Text = "Choose a folder to display its audio files.";
@@ -502,12 +675,26 @@ public partial class MainWindow : Window
             MessageBoxImage.Error);
     }
 
-    private bool TrySavePurchases(IEnumerable<PurchaseRecord> purchases)
+    private void ShowPurchaseReportError(Exception exception)
+    {
+        MessageBox.Show(
+            this,
+            $"The purchase was saved, but its PDF report could not be generated. The report may not reflect the latest changes.{Environment.NewLine}{exception.Message}",
+            "Purchase report could not be generated",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+    }
+
+    private bool TryDeletePurchase(PurchaseRecord purchase)
     {
         try
         {
-            PurchaseStore.Save(_settings.PurchaseStorageFolder, purchases);
+            PurchaseStore.Delete(_settings.PurchaseStorageFolder, purchase);
             return true;
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowPurchaseSaveError(exception);
         }
         catch (IOException exception)
         {
@@ -525,16 +712,73 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private bool TrySavePurchases(IEnumerable<PurchaseRecord> purchases, PurchaseRecord? reportPurchase = null)
+    {
+        try
+        {
+            PurchaseStore.Save(_settings.PurchaseStorageFolder, purchases);
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowPurchaseSaveError(exception);
+            return false;
+        }
+        catch (IOException exception)
+        {
+            ShowPurchaseSaveError(exception);
+            return false;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            ShowPurchaseSaveError(exception);
+            return false;
+        }
+        catch (SecurityException exception)
+        {
+            ShowPurchaseSaveError(exception);
+            return false;
+        }
+
+        if (reportPurchase is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            PurchaseReportGenerator.Save(_settings.PurchaseStorageFolder, reportPurchase);
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowPurchaseReportError(exception);
+        }
+        catch (IOException exception)
+        {
+            ShowPurchaseReportError(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            ShowPurchaseReportError(exception);
+        }
+        catch (SecurityException exception)
+        {
+            ShowPurchaseReportError(exception);
+        }
+
+        return true;
+    }
+
     private bool SavePurchaseSongs(PurchaseRecord purchase, IReadOnlyList<PurchaseSong> songs)
     {
         var originalSongs = purchase.Songs;
         purchase.Songs = songs.ToList();
-        if (!TrySavePurchases(_purchases))
+        if (!TrySavePurchases(_purchases, purchase))
         {
             purchase.Songs = originalSongs;
             return false;
         }
 
+        RebuildAssignedSongPaths();
         UpdatePurchaseCount();
         PurchasesGrid.Items.Refresh();
         return true;

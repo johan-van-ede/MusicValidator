@@ -44,7 +44,10 @@ public partial class AssignPurchaseWindow : Window
 
     private void CreatePurchase_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddPurchaseWindow { Owner = this };
+        var previousStores = PurchaseComboBox.ItemsSource
+            .OfType<PurchaseRecord>()
+            .Select(purchase => purchase.Store);
+        var dialog = new AddPurchaseWindow(previousStores) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.Purchase is PurchaseRecord purchase)
         {
             Purchase = purchase;

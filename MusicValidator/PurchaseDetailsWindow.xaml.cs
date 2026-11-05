@@ -1,6 +1,9 @@
-using System.Globalization;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Security;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
 
 namespace MusicValidator;
@@ -8,15 +11,18 @@ namespace MusicValidator;
 public partial class PurchaseDetailsWindow : Window
 {
     private readonly PurchaseRecord _purchase;
+    private readonly string _purchaseStorageFolder;
     private readonly Func<PurchaseRecord, IReadOnlyList<PurchaseSong>, bool> _saveSongChanges;
 
     internal PurchaseDetailsWindow(
         PurchaseRecord purchase,
-        Func<PurchaseRecord, IReadOnlyList<PurchaseSong>, bool> saveSongChanges)
+        Func<PurchaseRecord, IReadOnlyList<PurchaseSong>, bool> saveSongChanges,
+        string purchaseStorageFolder)
     {
         InitializeComponent();
         _purchase = purchase;
         _saveSongChanges = saveSongChanges;
+        _purchaseStorageFolder = purchaseStorageFolder;
         UpdatePurchaseView();
     }
 
@@ -96,9 +102,121 @@ public partial class PurchaseDetailsWindow : Window
 
     private void UpdatePurchaseView()
     {
-        PurchaseSummaryText.Text =
-            $"{_purchase.PurchaseDate.ToString("d", CultureInfo.CurrentCulture)}  |  {_purchase.Store}  |  {_purchase.Price.ToString("C", CultureInfo.CurrentCulture)}  |  {_purchase.SongCount:N0} songs";
+        PurchaseSummaryText.Text = _purchase.Details;
         SongsGrid.ItemsSource = _purchase.Songs;
+        EvidencePanel.Children.Clear();
+        AddEvidenceGroup(
+            "Open proof of ownership",
+            _purchase.PossessionProofPdfFile ?? _purchase.PossessionProofFile,
+            _purchase.PossessionProofNativeFile);
+        AddEvidenceGroup(
+            "Open proof of payment",
+            _purchase.PaymentProofPdfFile ?? _purchase.PaymentProofFile,
+            _purchase.PaymentProofNativeFile);
+        AddEvidenceGroup(
+            "Open proof of purchase",
+            _purchase.PurchaseProofPdfFile ?? _purchase.PurchaseProofFile,
+            _purchase.PurchaseProofNativeFile);
+        EvidencePanel.Visibility = EvidencePanel.Children.Count == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void AddEvidenceGroup(string label, string? pdfPath, string? nativePath)
+    {
+        if (string.IsNullOrWhiteSpace(pdfPath) && string.IsNullOrWhiteSpace(nativePath))
+        {
+            return;
+        }
+
+        var group = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 16, 8)
+        };
+        group.Children.Add(new TextBlock
+        {
+            Text = label,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
+        });
+        if (!string.IsNullOrWhiteSpace(pdfPath))
+        {
+            group.Children.Add(CreateEvidenceButton("PDF", pdfPath));
+        }
+
+        if (!string.IsNullOrWhiteSpace(nativePath))
+        {
+            group.Children.Add(CreateEvidenceButton("File", nativePath));
+        }
+
+        EvidencePanel.Children.Add(group);
+    }
+
+    private Button CreateEvidenceButton(string label, string relativePath)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Tag = relativePath,
+            Margin = new Thickness(0, 0, 6, 0),
+            Padding = new Thickness(8, 5, 8, 5)
+        };
+        button.Click += OpenEvidence_Click;
+        return button;
+    }
+
+    private void OpenEvidence_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string relativePath })
+        {
+            return;
+        }
+
+        try
+        {
+            var filePath = PurchaseStore.GetEvidenceFilePath(
+                _purchaseStorageFolder,
+                _purchase,
+                relativePath);
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException("The selected evidence file could not be found.", filePath);
+            }
+
+            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowEvidenceOpenError(exception);
+        }
+        catch (IOException exception)
+        {
+            ShowEvidenceOpenError(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            ShowEvidenceOpenError(exception);
+        }
+        catch (SecurityException exception)
+        {
+            ShowEvidenceOpenError(exception);
+        }
+        catch (Win32Exception exception)
+        {
+            ShowEvidenceOpenError(exception);
+        }
+    }
+
+    private void ShowEvidenceOpenError(Exception exception)
+    {
+        MessageBox.Show(
+            this,
+            $"Could not open the evidence file.{Environment.NewLine}{exception.Message}",
+            "Evidence could not be opened",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
     }
 
     private void Close_Click(object sender, RoutedEventArgs e)

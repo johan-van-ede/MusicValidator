@@ -14,6 +14,9 @@ internal sealed record MusicTrack(
     string? MetadataError)
 {
     public string Status { get; init; } = string.Empty;
+    public string RelativePath { get; init; } = string.Empty;
+    public string FolderOrderKey { get; init; } = string.Empty;
+    public bool IsValidated => string.Equals(Status, "Validated", StringComparison.OrdinalIgnoreCase);
 
     public string Details => MetadataError is null
         ? FilePath

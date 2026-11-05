@@ -127,12 +127,50 @@
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <DataGrid.Columns>
+              <DataGridTemplateColumn Width="42" CanUserSort="False">
+                <DataGridTemplateColumn.HeaderStyle>
+                  <Style TargetType="DataGridColumnHeader"
+                         BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                  </Style>
+                </DataGridTemplateColumn.HeaderStyle>
+                <DataGridTemplateColumn.Header>
+                  <Button x:Name="PathSortButton"
+                          Content="↕"
+                          Width="24"
+                          Height="24"
+                          Padding="0"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Foreground="{StaticResource AccentBrush}"
+                          ToolTip="Sort by relative folder path (ascending); click to reverse"
+                          AutomationProperties.Name="Toggle folder path sort"
+                          Click="ToggleFolderPathSort_Click" />
+                </DataGridTemplateColumn.Header>
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTextColumn Header="TRACK" Binding="{Binding TrackNumber}" Width="64" />
               <DataGridTextColumn Header="TITLE" Binding="{Binding Title}" Width="2*" />
               <DataGridTextColumn Header="ARTIST" Binding="{Binding Artist}" Width="*" />
               <DataGridTextColumn Header="ALBUM" Binding="{Binding Album}" Width="*" />
               <DataGridTextColumn Header="DURATION" Binding="{Binding Duration}" Width="100" />
-              <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="120" />
+              <DataGridTemplateColumn Header="STATUS" Width="130">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Content="{Binding Status}"
+                            Tag="{Binding}"
+                            Style="{StaticResource TrackStatusButton}"
+                            ToolTip="Click to manage this song's purchase assignment"
+                            AutomationProperties.Name="Assign song to a purchase"
+                            Click="TrackStatus_Click" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
             </DataGrid.Columns>
           </DataGrid>
         </DockPanel>
@@ -250,10 +288,25 @@
                                   Binding="{Binding PurchaseDate, StringFormat={}{0:d}}"
                                   Width="100" />
               <DataGridTextColumn Header="STORE" Binding="{Binding Store}" Width="*" />
+              <DataGridTextColumn Header="REMARK" Binding="{Binding Remark}" Width="*" />
+              <DataGridTextColumn Header="TYPE" Binding="{Binding Kind}" Width="78" />
+              <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentMethod}" Width="88" />
               <DataGridTextColumn Header="PRICE"
                                   Binding="{Binding Price, StringFormat={}{0:C}}"
                                   Width="105" />
               <DataGridTextColumn Header="SONGS" Binding="{Binding SongCount}" Width="70" />
+              <DataGridTemplateColumn Header="STATUS" Width="150">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Content="{Binding ValidationStatus}"
+                            Tag="{Binding}"
+                            Style="{StaticResource PurchaseValidationButton}"
+                            ToolTip="Click to update evidence or manual validation"
+                            AutomationProperties.Name="Update purchase validation"
+                            Click="PurchaseValidationStatus_Click" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTemplateColumn Header="DETAILS" Width="110">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
@@ -276,6 +329,7 @@
     <Grid Grid.Row="2" Background="{StaticResource HeaderBackground}">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="160" />
       </Grid.ColumnDefinitions>
       <TextBlock x:Name="StatusText"
@@ -285,8 +339,16 @@
                  FontSize="11"
                  VerticalAlignment="Center"
                  TextTrimming="CharacterEllipsis" />
+      <TextBlock x:Name="ValidationMetricText"
+                 Grid.Column="1"
+                 Text="Validated 0%"
+                 Margin="0,0,24,0"
+                 Foreground="{StaticResource AccentBrush}"
+                 FontSize="11"
+                 FontWeight="SemiBold"
+                 VerticalAlignment="Center" />
       <ProgressBar x:Name="ScanProgress"
-                   Grid.Column="1"
+                   Grid.Column="2"
                    Width="120"
                    Height="3"
                    Margin="0,0,24,0"
