@@ -1,0 +1,298 @@
+<Window x:Class="MusicValidator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Music Validator"
+        Width="1400"
+        Height="860"
+        MinWidth="900"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackground}"
+        Foreground="#E8EDF5"
+        FontFamily="Segoe UI">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="88" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="34" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0" Background="{StaticResource HeaderBackground}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <TextBlock Text="AUDIO WORKSPACE"
+                   Margin="0,0,0,5"
+                   Foreground="{StaticResource AccentBrush}"
+                   FontSize="10"
+                   FontWeight="Bold"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="Music Validator"
+                   FontSize="21"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Grid.Column="2"
+                  Orientation="Horizontal"
+                  Margin="0,0,24,0"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center">
+        <Button x:Name="SettingsButton"
+                Width="40"
+                Padding="8"
+                ToolTip="Settings"
+                AutomationProperties.Name="Settings"
+                Click="Settings_Click">
+          <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="1" x:Name="Workspace">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MinWidth="280" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="*" MinWidth="280" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="{StaticResource PanelBackground}" Padding="24">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" Margin="0,0,0,18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Music files" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="MusicCount"
+                       Grid.Column="1"
+                       Text="0 tracks"
+                       Foreground="{StaticResource MutedBrush}"
+                       FontSize="11"
+                       VerticalAlignment="Center" />
+            <Button x:Name="OpenFolderButton"
+                    Grid.Column="2"
+                    Content="Select music folder"
+                    Padding="10,7"
+                    Margin="12,0,0,0"
+                    Click="OpenFolder_Click" />
+            <TextBlock x:Name="MusicFolderText"
+                       Grid.Row="1"
+                       Grid.ColumnSpan="3"
+                       Text="No folder selected yet."
+                       Margin="0,5,0,0"
+                       Foreground="#697586"
+                       FontSize="11"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            <Button x:Name="AssignToPurchaseButton"
+                    Grid.Row="2"
+                    Grid.Column="2"
+                    Content="Assign selected to purchase"
+                    Padding="10,7"
+                    Margin="12,8,0,0"
+                    IsEnabled="False"
+                    Click="AssignToPurchase_Click" />
+          </Grid>
+          <DataGrid x:Name="MusicGrid"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    CanUserAddRows="False"
+                    CanUserDeleteRows="False"
+                    CanUserResizeRows="False"
+                    SelectionChanged="MusicGrid_SelectionChanged"
+                    HeadersVisibility="Column"
+                    GridLinesVisibility="None"
+                    SelectionMode="Extended"
+                    SelectionUnit="FullRow"
+                    RowHeight="36"
+                    ColumnHeaderHeight="40"
+                    Background="{StaticResource HeaderBackground}"
+                    Foreground="#E8EDF5"
+                    BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1"
+                    EnableRowVirtualization="True"
+                    EnableColumnVirtualization="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    ScrollViewer.CanContentScroll="True"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="TRACK" Binding="{Binding TrackNumber}" Width="64" />
+              <DataGridTextColumn Header="TITLE" Binding="{Binding Title}" Width="2*" />
+              <DataGridTextColumn Header="ARTIST" Binding="{Binding Artist}" Width="*" />
+              <DataGridTextColumn Header="ALBUM" Binding="{Binding Album}" Width="*" />
+              <DataGridTextColumn Header="DURATION" Binding="{Binding Duration}" Width="100" />
+              <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="120" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="1"
+                    Width="12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    ResizeDirection="Columns"
+                    ResizeBehavior="PreviousAndNext"
+                    Background="{StaticResource AppBackground}"
+                    ShowsPreview="False">
+        <GridSplitter.Template>
+          <ControlTemplate TargetType="GridSplitter">
+            <Grid Background="{TemplateBinding Background}">
+              <Border Width="2" HorizontalAlignment="Center" Background="{StaticResource LineBrush}" />
+              <Border x:Name="HoverLine" Width="2" HorizontalAlignment="Center" Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="HoverLine" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsDragging" Value="True">
+                <Setter TargetName="HoverLine" Property="Visibility" Value="Visible" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </GridSplitter.Template>
+      </GridSplitter>
+
+      <Border Grid.Column="2" Background="{StaticResource PanelBackground}" Padding="24">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" Margin="0,0,0,18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Purchases" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="PurchaseCount"
+                       Grid.Column="1"
+                       Text="0 purchases"
+                       Margin="16,0"
+                       Foreground="{StaticResource MutedBrush}"
+                       FontSize="11"
+                       VerticalAlignment="Center" />
+            <Button x:Name="SelectPurchaseFolderButton"
+                    Grid.Column="2"
+                    Content="Select purchase folder"
+                    Padding="10,7"
+                    Margin="12,0,0,0"
+                    Click="SelectPurchaseFolder_Click" />
+            <TextBlock x:Name="PurchaseFolderText"
+                       Grid.Row="1"
+                       Grid.Column="0"
+                       Grid.ColumnSpan="3"
+                       TextTrimming="CharacterEllipsis"
+                       Margin="0,6,0,0"
+                       Foreground="#697586"
+                       FontSize="11"
+                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            <StackPanel Grid.Row="2"
+                        Grid.Column="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="12,8,0,0">
+              <Button x:Name="AddPurchaseButton"
+                      Style="{StaticResource SubtleIconButton}"
+                      Content="+"
+                      ToolTip="Add purchase"
+                      AutomationProperties.Name="Add purchase"
+                      Click="AddPurchase_Click" />
+              <Button x:Name="RemovePurchaseButton"
+                      Style="{StaticResource SubtleIconButton}"
+                      Content="-"
+                      ToolTip="Remove selected purchase"
+                      AutomationProperties.Name="Remove selected purchase"
+                      IsEnabled="False"
+                      Margin="4,0,0,0"
+                      Click="RemovePurchase_Click" />
+            </StackPanel>
+          </Grid>
+          <DataGrid x:Name="PurchasesGrid"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    CanUserAddRows="False"
+                    CanUserDeleteRows="False"
+                    CanUserResizeRows="False"
+                    SelectionChanged="PurchasesGrid_SelectionChanged"
+                    HeadersVisibility="Column"
+                    GridLinesVisibility="None"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    RowHeight="36"
+                    ColumnHeaderHeight="40"
+                    Background="{StaticResource HeaderBackground}"
+                    Foreground="#E8EDF5"
+                    BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1"
+                    EnableRowVirtualization="True"
+                    EnableColumnVirtualization="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    ScrollViewer.CanContentScroll="True"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="DATE"
+                                  Binding="{Binding PurchaseDate, StringFormat={}{0:d}}"
+                                  Width="100" />
+              <DataGridTextColumn Header="STORE" Binding="{Binding Store}" Width="*" />
+              <DataGridTextColumn Header="PRICE"
+                                  Binding="{Binding Price, StringFormat={}{0:C}}"
+                                  Width="105" />
+              <DataGridTextColumn Header="SONGS" Binding="{Binding SongCount}" Width="70" />
+              <DataGridTemplateColumn Header="DETAILS" Width="110">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Content="View details"
+                            Padding="4,3"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{StaticResource AccentBrush}"
+                            Tag="{Binding}"
+                            Click="PurchaseDetails_Click" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <Grid Grid.Row="2" Background="{StaticResource HeaderBackground}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="160" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="StatusText"
+                 Text="Choose a folder to display its audio files."
+                 Margin="24,0"
+                 Foreground="{StaticResource MutedBrush}"
+                 FontSize="11"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+      <ProgressBar x:Name="ScanProgress"
+                   Grid.Column="1"
+                   Width="120"
+                   Height="3"
+                   Margin="0,0,24,0"
+                   IsIndeterminate="True"
+                   Visibility="Collapsed"
+                   VerticalAlignment="Center" />
+    </Grid>
+  </Grid>
+</Window>

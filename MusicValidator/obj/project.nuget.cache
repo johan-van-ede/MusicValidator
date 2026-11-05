@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "jUXE/MGfBWI=",
+  "success": true,
+  "projectFilePath": "C:\\Development\\Personal\\MusicValidator\\MusicValidator\\MusicValidator.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\jovanede\\.nuget\\packages\\taglibsharp\\2.3.0\\taglibsharp.2.3.0.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MusicValidator": {
+      "commandName": "Project",
+      "dotnetRunMessages": false
+    }
+  }
+}

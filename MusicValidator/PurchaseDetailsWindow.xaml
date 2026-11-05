@@ -1,0 +1,79 @@
+<Window x:Class="MusicValidator.PurchaseDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Purchase details"
+        Width="900"
+        Height="640"
+        MinWidth="680"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackground}"
+        Foreground="#E8EDF5"
+        FontFamily="Segoe UI">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Margin="0,0,0,18">
+      <TextBlock Text="Purchase details" FontSize="20" FontWeight="SemiBold" />
+      <WrapPanel Margin="0,10,0,0">
+        <TextBlock x:Name="PurchaseSummaryText"
+                   Foreground="{StaticResource MutedBrush}"
+                   FontSize="12" />
+      </WrapPanel>
+    </StackPanel>
+
+    <DataGrid x:Name="SongsGrid"
+              Grid.Row="1"
+              AutoGenerateColumns="False"
+              IsReadOnly="True"
+              CanUserAddRows="False"
+              CanUserDeleteRows="False"
+              HeadersVisibility="Column"
+              GridLinesVisibility="None"
+              RowHeight="36"
+              ColumnHeaderHeight="40"
+              Background="{StaticResource HeaderBackground}"
+              Foreground="#E8EDF5"
+              BorderBrush="{StaticResource LineBrush}"
+              BorderThickness="1"
+              EnableRowVirtualization="True"
+              VirtualizingPanel.IsVirtualizing="True"
+              VirtualizingPanel.VirtualizationMode="Recycling"
+              ScrollViewer.CanContentScroll="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="TRACK" Binding="{Binding TrackNumber}" Width="64" />
+        <DataGridTextColumn Header="TITLE" Binding="{Binding Title}" Width="1.5*" />
+        <DataGridTextColumn Header="ARTIST" Binding="{Binding Artist}" Width="*" />
+        <DataGridTextColumn Header="ALBUM" Binding="{Binding Album}" Width="*" />
+        <DataGridTextColumn Header="DURATION" Binding="{Binding Duration}" Width="90" />
+        <DataGridTextColumn Header="FILE" Binding="{Binding FilePath}" Width="2*" />
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <Grid Grid.Row="2" Margin="0,18,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="SongReadStatus"
+                 Foreground="{StaticResource MutedBrush}"
+                 FontSize="11"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+      <Button x:Name="AddSongsButton"
+              Grid.Column="1"
+              Content="Select songs"
+              Margin="0,0,8,0"
+              Click="AddSongs_Click" />
+      <Button Grid.Column="2"
+              Content="Close"
+              MinWidth="84"
+              Click="Close_Click" />
+    </Grid>
+  </Grid>
+</Window>
