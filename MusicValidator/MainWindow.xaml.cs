@@ -157,6 +157,18 @@ public partial class MainWindow : Window
         RemovePurchaseButton.IsEnabled = PurchasesGrid.SelectedItem is PurchaseRecord;
     }
 
+    private void RecheckPurchases_Click(object sender, RoutedEventArgs e)
+    {
+        PurchaseChecker.CheckAll(_settings.PurchaseStorageFolder, _purchases);
+        RebuildAssignedSongPaths();
+        PurchasesGrid.Items.Refresh();
+
+        var attentionCount = _purchases.Count(purchase => !purchase.IsValidated);
+        StatusText.Text = attentionCount == 0
+            ? $"All {_purchases.Count:N0} purchases passed their checks."
+            : $"{attentionCount:N0} of {_purchases.Count:N0} purchases need attention.";
+    }
+
     private void RemovePurchase_Click(object sender, RoutedEventArgs e)
     {
         if (PurchasesGrid.SelectedItem is not PurchaseRecord purchase)
@@ -599,8 +611,11 @@ public partial class MainWindow : Window
 
     private void ReplacePurchases(IEnumerable<PurchaseRecord> purchases)
     {
+        var purchaseList = purchases.ToList();
+        PurchaseChecker.CheckAll(_settings.PurchaseStorageFolder, purchaseList);
+
         _purchases.Clear();
-        foreach (var purchase in purchases)
+        foreach (var purchase in purchaseList)
         {
             _purchases.Add(purchase);
         }
@@ -716,7 +731,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            PurchaseStore.Save(_settings.PurchaseStorageFolder, purchases);
+            var purchaseList = purchases.ToList();
+            PurchaseStore.Save(_settings.PurchaseStorageFolder, purchaseList);
+            PurchaseChecker.CheckAll(_settings.PurchaseStorageFolder, purchaseList);
         }
         catch (InvalidDataException exception)
         {

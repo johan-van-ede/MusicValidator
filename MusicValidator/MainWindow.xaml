@@ -243,11 +243,18 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="12,8,0,0">
+              <Button x:Name="RecheckPurchasesButton"
+                      Style="{StaticResource SubtleIconButton}"
+                      Content="↻"
+                      ToolTip="Check all purchases and their evidence again"
+                      AutomationProperties.Name="Recheck all purchases"
+                      Click="RecheckPurchases_Click" />
               <Button x:Name="AddPurchaseButton"
                       Style="{StaticResource SubtleIconButton}"
                       Content="+"
                       ToolTip="Add purchase"
                       AutomationProperties.Name="Add purchase"
+                      Margin="4,0,0,0"
                       Click="AddPurchase_Click" />
               <Button x:Name="RemovePurchaseButton"
                       Style="{StaticResource SubtleIconButton}"
@@ -291,8 +298,8 @@
               <DataGridTextColumn Header="REMARK" Binding="{Binding Remark}" Width="*" />
               <DataGridTextColumn Header="TYPE" Binding="{Binding Kind}" Width="78" />
               <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentMethod}" Width="88" />
-              <DataGridTextColumn Header="PRICE"
-                                  Binding="{Binding Price, StringFormat={}{0:C}}"
+              <DataGridTextColumn Header="PRICE (€)"
+                                  Binding="{Binding Price, StringFormat={}{0:C}, ConverterCulture=nl-NL}"
                                   Width="105" />
               <DataGridTextColumn Header="SONGS" Binding="{Binding SongCount}" Width="70" />
               <DataGridTemplateColumn Header="STATUS" Width="150">
@@ -301,7 +308,7 @@
                     <Button Content="{Binding ValidationStatus}"
                             Tag="{Binding}"
                             Style="{StaticResource PurchaseValidationButton}"
-                            ToolTip="Click to update evidence or manual validation"
+                            ToolTip="{Binding ValidationSummary}"
                             AutomationProperties.Name="Update purchase validation"
                             Click="PurchaseValidationStatus_Click" />
                   </DataTemplate>

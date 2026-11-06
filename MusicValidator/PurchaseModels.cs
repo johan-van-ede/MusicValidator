@@ -67,22 +67,19 @@ internal sealed class PurchaseRecord
     public int SongCount => Songs.Count;
 
     [JsonIgnore]
-    public bool HasCompleteEvidence =>
-        Kind.HasValue
-        && PaymentMethod.HasValue
-        && HasEvidence(PurchaseProofPdfFile, PurchaseProofNativeFile, PurchaseProofFile)
-        && (Kind != PurchaseKind.Physical
-            || HasEvidence(PossessionProofPdfFile, PossessionProofNativeFile, PossessionProofFile))
-        && (PaymentMethod != global::MusicValidator.PaymentMethod.Digital
-            || HasEvidence(PaymentProofPdfFile, PaymentProofNativeFile, PaymentProofFile));
+    public PurchaseCheckResult? CheckResult { get; private set; }
 
     [JsonIgnore]
-    public bool IsValidated => ManuallyValidated || HasCompleteEvidence;
+    public bool HasCompleteEvidence => CheckResult?.HasCompleteEvidence == true;
 
     [JsonIgnore]
-    public string ValidationStatus => ManuallyValidated
-        ? "Validated manually"
-        : HasCompleteEvidence ? "Validated" : "Evidence missing";
+    public bool IsValidated => CheckResult?.IsValid == true;
+
+    [JsonIgnore]
+    public string ValidationStatus => CheckResult?.Status ?? "Not checked";
+
+    [JsonIgnore]
+    public string ValidationSummary => CheckResult?.Summary ?? "This purchase has not been checked yet.";
 
     [JsonIgnore]
     public string Details =>
@@ -107,13 +104,13 @@ internal sealed class PurchaseRecord
     [JsonIgnore]
     public string? StorageFolderName { get; set; }
 
-    private static bool HasEvidence(string? pdfFile, string? nativeFile, string? legacyFile) =>
-        !string.IsNullOrWhiteSpace(pdfFile)
-        || !string.IsNullOrWhiteSpace(nativeFile)
-        || !string.IsNullOrWhiteSpace(legacyFile);
-
     public PurchaseRecord()
     {
+    }
+
+    internal void SetCheckResult(PurchaseCheckResult result)
+    {
+        CheckResult = result;
     }
 }
 

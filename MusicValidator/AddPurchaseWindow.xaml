@@ -11,6 +11,16 @@
         Background="{StaticResource AppBackground}"
         Foreground="#E8EDF5"
         FontFamily="Segoe UI">
+  <Window.Resources>
+    <Style x:Key="ReadOnlyPurchaseValueBorder" TargetType="Border">
+      <Setter Property="Background" Value="{StaticResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="MinHeight" Value="34" />
+    </Style>
+  </Window.Resources>
   <Grid Margin="28">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
@@ -41,6 +51,11 @@
             <DatePicker x:Name="PurchaseDatePicker"
                         Height="34"
                         VerticalContentAlignment="Center" />
+            <Border x:Name="PurchaseDateReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="PurchaseDateReadOnlyText" VerticalAlignment="Center" />
+            </Border>
           </StackPanel>
           <StackPanel Grid.Column="1" Margin="0,0,12,0">
             <TextBlock Text="STORE" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
@@ -51,20 +66,31 @@
                       Height="34"
                       VerticalContentAlignment="Center"
                       Padding="8,0" />
+            <Border x:Name="StoreReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="StoreReadOnlyText" VerticalAlignment="Center" />
+            </Border>
           </StackPanel>
           <StackPanel Grid.Column="2">
-            <TextBlock Text="PURCHASE PRICE" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
+            <TextBlock Text="PURCHASE PRICE (€)" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
             <TextBox x:Name="PriceTextBox"
                      Height="34"
                      Padding="8,0"
                      VerticalContentAlignment="Center" />
+            <Border x:Name="PriceReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="PriceReadOnlyText" VerticalAlignment="Center" />
+            </Border>
           </StackPanel>
         </Grid>
 
         <Grid Margin="0,16,0,0">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="0.9*" />
+            <ColumnDefinition Width="1.1*" />
+            <ColumnDefinition Width="1.5*" />
           </Grid.ColumnDefinitions>
           <StackPanel Margin="0,0,12,0">
             <TextBlock Text="PURCHASE TYPE" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
@@ -76,8 +102,13 @@
               <ComboBoxItem Content="Physical" Tag="Physical" />
               <ComboBoxItem Content="Digital" Tag="Digital" />
             </ComboBox>
+            <Border x:Name="PurchaseKindReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="PurchaseKindReadOnlyText" VerticalAlignment="Center" />
+            </Border>
           </StackPanel>
-          <StackPanel Grid.Column="1">
+          <StackPanel Grid.Column="1" Margin="0,0,12,0">
             <TextBlock Text="PAYMENT METHOD" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
             <ComboBox x:Name="PaymentMethodComboBox"
                       Height="34"
@@ -87,20 +118,41 @@
               <ComboBoxItem Content="Cash" Tag="Cash" />
               <ComboBoxItem Content="Digital" Tag="Digital" />
             </ComboBox>
+            <Border x:Name="PaymentMethodReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="PaymentMethodReadOnlyText" VerticalAlignment="Center" />
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock Text="REMARK"
+                       Foreground="{StaticResource MutedBrush}"
+                       FontSize="10"
+                       Margin="0,0,0,7" />
+            <Grid x:Name="RemarkInputGrid">
+              <TextBox x:Name="RemarkTextBox"
+                       Height="34"
+                       Padding="8,0,44,0"
+                       VerticalContentAlignment="Center"
+                       MaxLength="25" />
+              <TextBlock x:Name="RemarkCharacterCountText"
+                         Text="0/25"
+                         HorizontalAlignment="Right"
+                         VerticalAlignment="Center"
+                         Margin="0,0,9,0"
+                         Foreground="{StaticResource MutedBrush}"
+                         FontSize="10"
+                         IsHitTestVisible="False" />
+            </Grid>
+            <Border x:Name="RemarkReadOnly"
+                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="RemarkReadOnlyText"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap" />
+            </Border>
           </StackPanel>
         </Grid>
-
-        <StackPanel Margin="0,16,0,0">
-          <TextBlock Text="REMARK (OPTIONAL)"
-                     Foreground="{StaticResource MutedBrush}"
-                     FontSize="10"
-                     Margin="0,0,0,7" />
-          <TextBox x:Name="RemarkTextBox"
-                   Height="34"
-                   Padding="8,0"
-                   VerticalContentAlignment="Center"
-                   MaxLength="100" />
-        </StackPanel>
 
         <StackPanel x:Name="PossessionProofPanel" Visibility="Collapsed" Margin="0,18,0,0">
           <StackPanel Orientation="Horizontal" Margin="0,0,0,7">

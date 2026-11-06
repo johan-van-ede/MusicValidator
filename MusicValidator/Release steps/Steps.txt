@@ -1,0 +1,5 @@
+1. Change the new version like: <Version>0.1.0-test.1</Version> in MusicValidator.csproj
+2. Run the publish command from terminal:
+dotnet publish "C:\Development\Personal\MusicValidator\MusicValidator\MusicValidator.csproj" -c Release -r win-x64 --self-contained true
+3. Go to outputfolder or use the shortcut:
+bin\Release\net10.0-windows\win-x64\publish\

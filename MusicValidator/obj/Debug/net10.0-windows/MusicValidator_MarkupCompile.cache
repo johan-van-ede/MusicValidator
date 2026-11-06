@@ -1,5 +1,5 @@
 ﻿MusicValidator
-
+0.1.0.0
 
 winexe
 C#
@@ -12,7 +12,7 @@ TRACE;DEBUG;NET;NET10_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_O
 C:\Development\Personal\MusicValidator\MusicValidator\App.xaml
 51032627534
 
-11-357954555
+14-695449153
 218147185565
 AddPurchaseWindow.xaml;AssignPurchaseWindow.xaml;MainWindow.xaml;PurchaseDetailsWindow.xaml;SettingsWindow.xaml;
 

@@ -90,3 +90,8 @@ C:\Development\Personal\MusicValidator\MusicValidator\bin\Debug\net10.0-windows\
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Debug\net10.0-windows\PdfSharp.Snippets-wpf.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Debug\net10.0-windows\PdfSharp.System.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Debug\net10.0-windows\PdfSharp.WPFonts.dll
+C:\Users\jovanede\.copilot\session-state\683ce104-7f86-47ab-b15b-5b7088f9d3e5\files\purchase-checker-smoke\bin\Debug\net10.0-windows\MusicValidator.exe
+C:\Users\jovanede\.copilot\session-state\683ce104-7f86-47ab-b15b-5b7088f9d3e5\files\purchase-checker-smoke\bin\Debug\net10.0-windows\MusicValidator.deps.json
+C:\Users\jovanede\.copilot\session-state\683ce104-7f86-47ab-b15b-5b7088f9d3e5\files\purchase-checker-smoke\bin\Debug\net10.0-windows\MusicValidator.runtimeconfig.json
+C:\Users\jovanede\.copilot\session-state\683ce104-7f86-47ab-b15b-5b7088f9d3e5\files\purchase-checker-smoke\bin\Debug\net10.0-windows\MusicValidator.dll
+C:\Users\jovanede\.copilot\session-state\683ce104-7f86-47ab-b15b-5b7088f9d3e5\files\purchase-checker-smoke\bin\Debug\net10.0-windows\MusicValidator.pdb

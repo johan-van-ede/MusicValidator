@@ -1,13 +1,16 @@
 {
   "version": 2,
-  "dgSpecHash": "BY/VkPpUQnM=",
+  "dgSpecHash": "WAVp/COLq2Y=",
   "success": true,
   "projectFilePath": "C:\\Development\\Personal\\MusicValidator\\MusicValidator\\MusicValidator.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\jovanede\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\8.0.2\\microsoft.extensions.dependencyinjection.abstractions.8.0.2.nupkg.sha512",
     "C:\\Users\\jovanede\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\8.0.3\\microsoft.extensions.logging.abstractions.8.0.3.nupkg.sha512",
     "C:\\Users\\jovanede\\.nuget\\packages\\pdfsharp-wpf\\6.2.4\\pdfsharp-wpf.6.2.4.nupkg.sha512",
-    "C:\\Users\\jovanede\\.nuget\\packages\\taglibsharp\\2.3.0\\taglibsharp.2.3.0.nupkg.sha512"
+    "C:\\Users\\jovanede\\.nuget\\packages\\taglibsharp\\2.3.0\\taglibsharp.2.3.0.nupkg.sha512",
+    "C:\\Users\\jovanede\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.14\\microsoft.netcore.app.runtime.win-x64.10.0.14.nupkg.sha512",
+    "C:\\Users\\jovanede\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.14\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.14.nupkg.sha512",
+    "C:\\Users\\jovanede\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.14\\microsoft.aspnetcore.app.runtime.win-x64.10.0.14.nupkg.sha512"
   ],
   "logs": []
 }

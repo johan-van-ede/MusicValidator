@@ -22,6 +22,8 @@ public partial class AddPurchaseWindow : Window
     {
         InitializeComponent();
         _existingPurchase = purchaseToEdit;
+        RemarkTextBox.TextChanged += RemarkTextBox_TextChanged;
+        UpdateRemarkCharacterCount();
         StoreComboBox.ItemsSource = previousStores
             .Where(store => !string.IsNullOrWhiteSpace(store))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -145,6 +147,17 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
+        var existingPurchase = _existingPurchase;
+        var remark = string.IsNullOrWhiteSpace(existingPurchase?.Remark)
+            ? RemarkTextBox.Text.Trim()
+            : existingPurchase.Remark;
+        if (string.IsNullOrWhiteSpace(remark))
+        {
+            ShowInputError("Enter a remark; it is used in purchase evidence filenames.");
+            RemarkTextBox.Focus();
+            return;
+        }
+
         if (!decimal.TryParse(
                 PriceTextBox.Text,
                 NumberStyles.Currency,
@@ -175,13 +188,12 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
-        var existingPurchase = _existingPurchase;
         Purchase = new PurchaseRecord
         {
             Id = existingPurchase?.Id ?? Guid.NewGuid(),
             PurchaseDate = purchaseDate.Date,
             Store = store,
-            Remark = RemarkTextBox.Text.Trim(),
+            Remark = remark,
             Price = price,
             Kind = purchaseKind,
             PaymentMethod = paymentMethod,
@@ -217,17 +229,46 @@ public partial class AddPurchaseWindow : Window
         PurchaseDatePicker.SelectedDate = purchase.PurchaseDate;
         StoreComboBox.Text = purchase.Store;
         PriceTextBox.Text = purchase.Price.ToString("0.00", CultureInfo.CurrentCulture);
-        RemarkTextBox.Text = purchase.Remark;
         SelectComboItem(PurchaseKindComboBox, purchase.Kind?.ToString());
         SelectComboItem(PaymentMethodComboBox, purchase.PaymentMethod?.ToString());
         ManualValidationCheckBox.IsChecked = purchase.ManuallyValidated;
 
-        PurchaseDatePicker.IsEnabled = false;
-        StoreComboBox.IsEnabled = false;
-        PriceTextBox.IsEnabled = false;
-        RemarkTextBox.IsEnabled = false;
-        PurchaseKindComboBox.IsEnabled = !purchase.Kind.HasValue;
-        PaymentMethodComboBox.IsEnabled = !purchase.PaymentMethod.HasValue;
+        PurchaseDateReadOnlyText.Text = purchase.PurchaseDate.ToString("d", CultureInfo.CurrentCulture);
+        PurchaseDatePicker.Visibility = Visibility.Collapsed;
+        PurchaseDateReadOnly.Visibility = Visibility.Visible;
+
+        StoreReadOnlyText.Text = purchase.Store;
+        StoreComboBox.Visibility = Visibility.Collapsed;
+        StoreReadOnly.Visibility = Visibility.Visible;
+
+        PriceReadOnlyText.Text = purchase.Price.ToString("C", CultureInfo.GetCultureInfo("nl-NL"));
+        PriceTextBox.Visibility = Visibility.Collapsed;
+        PriceReadOnly.Visibility = Visibility.Visible;
+
+        if (string.IsNullOrWhiteSpace(purchase.Remark))
+        {
+            RemarkTextBox.Text = string.Empty;
+        }
+        else
+        {
+            RemarkReadOnlyText.Text = purchase.Remark;
+            RemarkInputGrid.Visibility = Visibility.Collapsed;
+            RemarkReadOnly.Visibility = Visibility.Visible;
+        }
+
+        if (purchase.Kind.HasValue)
+        {
+            PurchaseKindReadOnlyText.Text = purchase.Kind.Value.ToString();
+            PurchaseKindComboBox.Visibility = Visibility.Collapsed;
+            PurchaseKindReadOnly.Visibility = Visibility.Visible;
+        }
+
+        if (purchase.PaymentMethod.HasValue)
+        {
+            PaymentMethodReadOnlyText.Text = purchase.PaymentMethod.Value.ToString();
+            PaymentMethodComboBox.Visibility = Visibility.Collapsed;
+            PaymentMethodReadOnly.Visibility = Visibility.Visible;
+        }
 
         UpdatePossessionProofFileText();
         UpdatePaymentProofFileText();
@@ -298,5 +339,15 @@ public partial class AddPurchaseWindow : Window
             "Purchase details required",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);
+    }
+
+    private void RemarkTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateRemarkCharacterCount();
+    }
+
+    private void UpdateRemarkCharacterCount()
+    {
+        RemarkCharacterCountText.Text = $"{RemarkTextBox.Text.Length}/25";
     }
 }

@@ -117,6 +117,123 @@
           }
         }
       }
+    },
+    "net10.0-windows/win-x64": {
+      "Microsoft.Extensions.DependencyInjection.Abstractions/8.0.2": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net6.0/_._": {}
+        }
+      },
+      "Microsoft.Extensions.Logging.Abstractions/8.0.3": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2"
+        },
+        "compile": {
+          "lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net6.0/Microsoft.Extensions.Logging.Abstractions.targets": {}
+        }
+      },
+      "PDFsharp-WPF/6.2.4": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        },
+        "compile": {
+          "lib/net10.0-windows7.0/PdfSharp-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.BarCodes-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Charting-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Cryptography.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Quality-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Shared.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Snippets-wpf.dll": {
+            "related": ".pdb"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.System.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.WPFonts.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0-windows7.0/PdfSharp-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.BarCodes-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Charting-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Cryptography.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Quality-wpf.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Shared.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.Snippets-wpf.dll": {
+            "related": ".pdb"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.System.dll": {
+            "related": ".pdb;.xml"
+          },
+          "lib/net10.0-windows7.0/PdfSharp.WPFonts.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "frameworkReferences": [
+          "Microsoft.WindowsDesktop.App.WPF"
+        ]
+      },
+      "TagLibSharp/2.3.0": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/TagLibSharp.dll": {
+            "related": ".pdb"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/TagLibSharp.dll": {
+            "related": ".pdb"
+          }
+        }
+      }
     }
   },
   "libraries": {
@@ -371,7 +488,7 @@
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
-    "version": "1.0.0",
+    "version": "0.1.0-test.1",
     "restore": {
       "projectUniqueName": "C:\\Development\\Personal\\MusicValidator\\MusicValidator\\MusicValidator.csproj",
       "projectName": "MusicValidator",
@@ -438,6 +555,20 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+            "version": "[10.0.14, 10.0.14]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Runtime.win-x64",
+            "version": "[10.0.14, 10.0.14]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
+            "version": "[10.0.14, 10.0.14]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
@@ -737,6 +868,11 @@
           "System.Xml.XPath": "(,4.3.32767]",
           "System.Xml.XPath.XDocument": "(,5.0.32767]"
         }
+      }
+    },
+    "runtimes": {
+      "win-x64": {
+        "#import": []
       }
     }
   }
