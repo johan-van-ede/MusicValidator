@@ -62,11 +62,12 @@
       </TabControl.Resources>
       <TabItem Header="Folders">
         <StackPanel Margin="20">
-          <TextBlock Text="Music folder" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Text="When selected, the app scans this folder when it starts."
+          <TextBlock Text="Music folders" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Text="Select one or more folders; hold Ctrl to select multiple. The app scans them when it starts."
                      Margin="0,5,0,9"
                      Foreground="{StaticResource MutedBrush}"
-                     FontSize="12" />
+                     FontSize="12"
+                     TextWrapping="Wrap" />
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*" />
@@ -74,6 +75,10 @@
             </Grid.ColumnDefinitions>
             <TextBox x:Name="MusicFolderTextBox"
                      IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     MaxHeight="72"
                      Padding="8,7"
                      Background="{StaticResource HeaderBackground}"
                      Foreground="#E8EDF5"

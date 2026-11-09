@@ -20,15 +20,19 @@ public partial class MainWindow : Window
     private readonly ICollectionView _musicView;
     private readonly HashSet<string> _assignedSongPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _validatedSongPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _assignedLibraryRelativePaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _validatedLibraryRelativePaths = new(StringComparer.OrdinalIgnoreCase);
     private AppSettings _settings = new();
+    private bool _hideValidatedTracks;
     private ListSortDirection _folderPathSortDirection = ListSortDirection.Ascending;
     private int _validatedTrackCount;
-    private string? _selectedFolder;
 
     public MainWindow()
     {
         InitializeComponent();
         _musicView = CollectionViewSource.GetDefaultView(_musicTracks);
+        _musicView.Filter = item => !_hideValidatedTracks
+            || item is MusicTrack track && !track.IsValidated;
         SortMusicByFolderPath(_folderPathSortDirection);
         MusicGrid.ItemsSource = _musicView;
         PurchasesGrid.ItemsSource = _purchases;
@@ -64,9 +68,9 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Loaded -= MainWindow_Loaded;
-        if (!string.IsNullOrWhiteSpace(_settings.MusicFolderPath))
+        if (_settings.MusicFolderPaths.Count > 0)
         {
-            await ScanFolderAsync(_settings.MusicFolderPath);
+            await ScanFoldersAsync(_settings.MusicFolderPaths);
         }
     }
 
@@ -74,16 +78,21 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Select a music folder"
+            Title = "Select music folders",
+            Multiselect = true
         };
 
         if (dialog.ShowDialog(this) == true)
         {
+            var folderPaths = dialog.FolderNames
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             var updatedSettings = _settings.Copy();
-            updatedSettings.MusicFolderPath = dialog.FolderName;
+            updatedSettings.MusicFolderPaths = folderPaths;
+            updatedSettings.MusicFolderPath = folderPaths.FirstOrDefault();
             _settings = updatedSettings;
             TrySaveSettings(updatedSettings);
-            await ScanFolderAsync(dialog.FolderName);
+            await ScanFoldersAsync(folderPaths);
         }
     }
 
@@ -123,13 +132,13 @@ public partial class MainWindow : Window
             ReplacePurchases(updatedPurchases);
         }
 
-        if (string.IsNullOrWhiteSpace(_settings.MusicFolderPath))
+        if (_settings.MusicFolderPaths.Count == 0)
         {
             ClearMusicFolder();
         }
         else
         {
-            await ScanFolderAsync(_settings.MusicFolderPath);
+            await ScanFoldersAsync(_settings.MusicFolderPaths);
         }
     }
 
@@ -257,6 +266,14 @@ public partial class MainWindow : Window
         SortMusicByFolderPath(direction);
     }
 
+    private void ToggleValidatedTracks_Click(object sender, RoutedEventArgs e)
+    {
+        _hideValidatedTracks = HideValidatedTracksCheckBox.IsChecked == true;
+        _musicView.Refresh();
+        MusicGrid.UnselectAll();
+        UpdateMusicCount();
+    }
+
     private void AssignToPurchase_Click(object sender, RoutedEventArgs e)
     {
         AssignTracksToPurchase(MusicGrid.SelectedItems.OfType<MusicTrack>().ToList());
@@ -356,16 +373,16 @@ public partial class MainWindow : Window
         StatusText.Text = $"Loaded {_purchases.Count:N0} purchases from the selected folder.";
     }
 
-    private async Task ScanFolderAsync(string folderPath)
+    private async Task ScanFoldersAsync(IReadOnlyList<string> folderPaths)
     {
-        _selectedFolder = folderPath;
+        var folderLabel = string.Join(Environment.NewLine, folderPaths);
         _musicTracks.Clear();
         _validatedTrackCount = 0;
         UpdateMusicCount();
         UpdateValidationMetric();
         MusicGrid.UnselectAll();
-        MusicFolderText.Text = folderPath;
-        MusicFolderText.ToolTip = folderPath;
+        MusicFolderText.Text = string.Join("; ", folderPaths);
+        MusicFolderText.ToolTip = folderLabel;
         OpenFolderButton.IsEnabled = false;
         SettingsButton.IsEnabled = false;
         ScanProgress.Visibility = Visibility.Visible;
@@ -384,7 +401,10 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    await ReadFolderAsync(folderPath, settings, channel.Writer);
+                    foreach (var folderPath in folderPaths)
+                    {
+                        await ReadFolderAsync(folderPath, settings, channel.Writer);
+                    }
                 }
                 finally
                 {
@@ -392,14 +412,22 @@ public partial class MainWindow : Window
                 }
             });
 
+            var scannedFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             await foreach (var track in channel.Reader.ReadAllAsync())
             {
+                if (!scannedFilePaths.Add(track.FilePath))
+                {
+                    continue;
+                }
+
                 var displayedTrack = track;
-                if (_validatedSongPaths.Contains(track.FilePath))
+                if (_validatedSongPaths.Contains(track.FilePath)
+                    || _validatedLibraryRelativePaths.Contains(track.LibraryRelativePath))
                 {
                     displayedTrack = track with { Status = "Validated" };
                 }
-                else if (_assignedSongPaths.Contains(track.FilePath))
+                else if (_assignedSongPaths.Contains(track.FilePath)
+                    || _assignedLibraryRelativePaths.Contains(track.LibraryRelativePath))
                 {
                     displayedTrack = track with { Status = "Assigned" };
                 }
@@ -423,15 +451,15 @@ public partial class MainWindow : Window
         }
         catch (SecurityException exception)
         {
-            ShowScanError(folderPath, exception);
+            ShowScanError(folderLabel, exception);
         }
         catch (UnauthorizedAccessException exception)
         {
-            ShowScanError(folderPath, exception);
+            ShowScanError(folderLabel, exception);
         }
         catch (IOException exception)
         {
-            ShowScanError(folderPath, exception);
+            ShowScanError(folderLabel, exception);
         }
         finally
         {
@@ -467,7 +495,8 @@ public partial class MainWindow : Window
                 var track = MusicTrackReader.Read(filePath) with
                 {
                     RelativePath = relativePath,
-                    FolderOrderKey = CreateFolderOrderKey(relativePath)
+                    LibraryRelativePath = CreateLibraryRelativePath(folderPath, relativePath),
+                    FolderOrderKey = CreateFolderOrderKey(filePath)
                 };
                 await writer.WriteAsync(track, cancellationToken);
             });
@@ -481,12 +510,15 @@ public partial class MainWindow : Window
             new SortDescription(nameof(MusicTrack.FolderOrderKey), direction));
         _musicView.Refresh();
         PathSortButton.ToolTip =
-            $"Sort by relative folder path ({direction.ToString().ToLowerInvariant()}); click to reverse";
+            $"Sort by full file path ({direction.ToString().ToLowerInvariant()}); click to reverse";
     }
 
     private void UpdateMusicCount()
     {
-        MusicCount.Text = $"{_musicTracks.Count:N0} tracks";
+        var visibleTrackCount = _musicView.Cast<MusicTrack>().Count();
+        MusicCount.Text = _hideValidatedTracks
+            ? $"{visibleTrackCount:N0}/{_musicTracks.Count:N0} tracks"
+            : $"{_musicTracks.Count:N0} tracks";
     }
 
     private void UpdateValidationMetric()
@@ -497,9 +529,9 @@ public partial class MainWindow : Window
         ValidationMetricText.Text = $"Validated {validationRate:P0}";
     }
 
-    private static string CreateFolderOrderKey(string relativePath)
+    private static string CreateFolderOrderKey(string filePath)
     {
-        var normalizedPath = relativePath
+        var normalizedPath = filePath
             .Replace(Path.DirectorySeparatorChar, '/')
             .Replace(Path.AltDirectorySeparatorChar, '/')
             .ToUpperInvariant();
@@ -514,6 +546,49 @@ public partial class MainWindow : Window
             return $"{significantDigits.Length:D10}:{significantDigits}:{match.Value.Length:D10}";
         });
     }
+
+    private static string CreateLibraryRelativePath(string libraryFolderPath, string relativePath)
+    {
+        var libraryFolderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(libraryFolderPath));
+        return NormalizeLibraryPath(string.IsNullOrWhiteSpace(libraryFolderName)
+            ? relativePath
+            : Path.Combine(libraryFolderName, relativePath));
+    }
+
+    private string? CreateStoredLibraryRelativePath(string filePath)
+    {
+        var pathSegments = filePath
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var libraryFolderNames = _settings.MusicFolderPaths
+            .Select(folderPath => Path.GetFileName(Path.TrimEndingDirectorySeparator(folderPath)))
+            .Where(folderName => !string.IsNullOrWhiteSpace(folderName))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var libraryFolderIndex = -1;
+        foreach (var libraryFolderName in libraryFolderNames)
+        {
+            for (var index = pathSegments.Length - 2; index > libraryFolderIndex; index--)
+            {
+                if (string.Equals(pathSegments[index], libraryFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    libraryFolderIndex = index;
+                    break;
+                }
+            }
+        }
+
+        return libraryFolderIndex < 0
+            ? null
+            : NormalizeLibraryPath(string.Join('/', pathSegments.Skip(libraryFolderIndex)));
+    }
+
+    private static string NormalizeLibraryPath(string path) =>
+        path.Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/')
+            .TrimStart('/')
+            .ToUpperInvariant();
 
     private void ShowScanError(string folderPath, Exception exception)
     {
@@ -628,14 +703,26 @@ public partial class MainWindow : Window
     {
         _assignedSongPaths.Clear();
         _validatedSongPaths.Clear();
+        _assignedLibraryRelativePaths.Clear();
+        _validatedLibraryRelativePaths.Clear();
         foreach (var purchase in _purchases)
         {
             foreach (var song in purchase.Songs)
             {
                 _assignedSongPaths.Add(song.FilePath);
+                var libraryRelativePath = CreateStoredLibraryRelativePath(song.FilePath);
+                if (libraryRelativePath is not null)
+                {
+                    _assignedLibraryRelativePaths.Add(libraryRelativePath);
+                }
+
                 if (purchase.IsValidated)
                 {
                     _validatedSongPaths.Add(song.FilePath);
+                    if (libraryRelativePath is not null)
+                    {
+                        _validatedLibraryRelativePaths.Add(libraryRelativePath);
+                    }
                 }
             }
         }
@@ -643,9 +730,11 @@ public partial class MainWindow : Window
         for (var index = 0; index < _musicTracks.Count; index++)
         {
             var track = _musicTracks[index];
-            var status = _validatedSongPaths.Contains(track.FilePath)
-                ? "Validated"
-                : _assignedSongPaths.Contains(track.FilePath) ? "Assigned" : "Unvalidated";
+            var isValidated = _validatedSongPaths.Contains(track.FilePath)
+                || _validatedLibraryRelativePaths.Contains(track.LibraryRelativePath);
+            var isAssigned = _assignedSongPaths.Contains(track.FilePath)
+                || _assignedLibraryRelativePaths.Contains(track.LibraryRelativePath);
+            var status = isValidated ? "Validated" : isAssigned ? "Assigned" : "Unvalidated";
             if (!string.Equals(track.Status, status, StringComparison.Ordinal))
             {
                 _musicTracks[index] = track with { Status = status };
@@ -658,7 +747,6 @@ public partial class MainWindow : Window
 
     private void ClearMusicFolder()
     {
-        _selectedFolder = null;
         _musicTracks.Clear();
         _validatedTrackCount = 0;
         SortMusicByFolderPath(ListSortDirection.Ascending);

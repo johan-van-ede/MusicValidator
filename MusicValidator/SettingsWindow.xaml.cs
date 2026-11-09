@@ -12,7 +12,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         Settings = settings.Copy();
-        MusicFolderTextBox.Text = Settings.MusicFolderPath ?? string.Empty;
+        MusicFolderTextBox.Text = string.Join(Environment.NewLine, Settings.MusicFolderPaths);
         PurchaseFolderTextBox.Text = Settings.PurchaseStorageFolder;
         IncludeSubfoldersCheckBox.IsChecked = Settings.IncludeSubfolders;
 
@@ -37,10 +37,14 @@ public partial class SettingsWindow : Window
 
     private void BrowseMusicFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Select music folder" };
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select music folders",
+            Multiselect = true
+        };
         if (dialog.ShowDialog(this) == true)
         {
-            MusicFolderTextBox.Text = dialog.FolderName;
+            MusicFolderTextBox.Text = string.Join(Environment.NewLine, dialog.FolderNames);
         }
     }
 
@@ -76,9 +80,13 @@ public partial class SettingsWindow : Window
         {
             IncludeSubfolders = IncludeSubfoldersCheckBox.IsChecked == true,
             AudioExtensions = extensions,
-            MusicFolderPath = string.IsNullOrWhiteSpace(MusicFolderTextBox.Text)
-                ? null
-                : MusicFolderTextBox.Text,
+            MusicFolderPaths = MusicFolderTextBox.Text
+                .Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            MusicFolderPath = MusicFolderTextBox.Text
+                .Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault(),
             PurchaseStorageFolder = PurchaseFolderTextBox.Text
         };
         DialogResult = true;

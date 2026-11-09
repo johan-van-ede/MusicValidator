@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.IO;
+using System.Security;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -32,6 +34,7 @@ public partial class AddPurchaseWindow : Window
         PriceTextBox.Text = 0m.ToString("0.00", CultureInfo.CurrentCulture);
         if (_existingPurchase is not null)
         {
+            LegacyImportButton.Visibility = Visibility.Collapsed;
             PopulateExistingPurchase(_existingPurchase);
         }
 
@@ -52,6 +55,286 @@ public partial class AddPurchaseWindow : Window
     {
         UpdateProofVisibility();
     }
+
+    private void ImportLegacy_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select a legacy legality report",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var legacyInfo = ReadLegacyPurchaseInfo(dialog.FileName);
+            var importPossessionProof = legacyInfo.Evidence.HasPossessionProof
+                && MessageBox.Show(
+                    this,
+                    "Was this purchase for a single album? Import the proof of possession from the legacy report?",
+                    "Import proof of possession",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) == MessageBoxResult.Yes;
+
+            StoreComboBox.Text = legacyInfo.Store ?? string.Empty;
+            SelectComboItem(PurchaseKindComboBox, legacyInfo.Kind?.ToString());
+            PurchaseDatePicker.SelectedDate = legacyInfo.PurchaseDate;
+            if (importPossessionProof)
+            {
+                _possessionProofPdfSourcePath = legacyInfo.Evidence.PossessionPdf;
+                _possessionProofNativeSourcePath = legacyInfo.Evidence.PossessionNative;
+            }
+
+            _purchaseProofPdfSourcePath = legacyInfo.Evidence.PurchasePdf ?? _purchaseProofPdfSourcePath;
+            _purchaseProofNativeSourcePath = legacyInfo.Evidence.PurchaseNative ?? _purchaseProofNativeSourcePath;
+            _paymentProofPdfSourcePath = legacyInfo.Evidence.PaymentPdf ?? _paymentProofPdfSourcePath;
+            _paymentProofNativeSourcePath = legacyInfo.Evidence.PaymentNative ?? _paymentProofNativeSourcePath;
+
+            UpdatePossessionProofFileText();
+            UpdatePurchaseProofFileText();
+            UpdatePaymentProofFileText();
+
+            var missingKindMessage = legacyInfo.Kind is null
+                ? " The file has no purchase type; select it manually."
+                : string.Empty;
+            var missingEvidenceMessage = legacyInfo.Evidence.MissingFiles.Count == 0
+                ? string.Empty
+                : $"{Environment.NewLine}Evidence files not found in an Album folder: {string.Join(", ", legacyInfo.Evidence.MissingFiles)}.";
+            MessageBox.Show(
+                this,
+                legacyInfo.PurchaseDate is null
+                    ? $"Legacy information was loaded. The file has no known purchase date; enter it manually.{missingKindMessage} Check the imported store and enter the price, payment method, and remark.{missingEvidenceMessage}"
+                    : $"Legacy information was loaded. Check the imported store and date, and enter the price, payment method, and remark.{missingKindMessage}{missingEvidenceMessage}",
+                "Legacy information loaded",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (JsonException exception)
+        {
+            ShowLegacyImportError(exception);
+        }
+        catch (InvalidDataException exception)
+        {
+            ShowLegacyImportError(exception);
+        }
+        catch (IOException exception)
+        {
+            ShowLegacyImportError(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            ShowLegacyImportError(exception);
+        }
+        catch (SecurityException exception)
+        {
+            ShowLegacyImportError(exception);
+        }
+    }
+
+    private static LegacyPurchaseInfo ReadLegacyPurchaseInfo(string filePath)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(filePath));
+        if (!TryGetProperty(document.RootElement, "Legalinfo", out var legalInfo))
+        {
+            throw new InvalidDataException("The selected file does not contain LegalInfo.");
+        }
+
+        JsonElement purchaseInfo;
+        if (TryGetProperty(legalInfo, "Sourcemedium", out _)
+            || TryGetProperty(legalInfo, "Purchasestore", out _)
+            || TryGetProperty(legalInfo, "Purchasedate", out _))
+        {
+            purchaseInfo = legalInfo;
+        }
+        else if (TryGetProperty(legalInfo, "Legalgroups", out var groups)
+            && groups.ValueKind == JsonValueKind.Array)
+        {
+            var albumGroups = groups
+                .EnumerateArray()
+                .Where(group =>
+                    string.Equals(GetString(group, "Proofmethod"), "Album", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(GetString(group, "Groupname"), "Album", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (albumGroups.Count == 0 && groups.GetArrayLength() == 1)
+            {
+                albumGroups.Add(groups[0]);
+            }
+
+            if (albumGroups.Count != 1)
+            {
+                throw new InvalidDataException("The selected file does not contain one unambiguous album purchase group.");
+            }
+
+            purchaseInfo = albumGroups[0];
+        }
+        else
+        {
+            throw new InvalidDataException("The selected file does not contain purchase information in LegalInfo.");
+        }
+
+        var sourceMedium = GetString(purchaseInfo, "Sourcemedium");
+        var kind = sourceMedium?.Trim().ToUpperInvariant() switch
+        {
+            "PHYSICAL" => PurchaseKind.Physical,
+            "DIGITAL" => PurchaseKind.Digital,
+            _ => (PurchaseKind?)null
+        };
+        if (!string.IsNullOrWhiteSpace(sourceMedium) && kind is null)
+        {
+            throw new InvalidDataException($"The legacy file contains an unsupported source medium: {sourceMedium}.");
+        }
+
+        var store = GetString(purchaseInfo, "Purchasestore")?.Trim();
+        var dateUnknown = TryGetProperty(purchaseInfo, "Dateunknown", out var dateUnknownValue)
+            && dateUnknownValue.ValueKind == JsonValueKind.True;
+        DateTime? purchaseDate = null;
+        var dateText = GetString(purchaseInfo, "Purchasedate");
+        if (!dateUnknown && !string.IsNullOrWhiteSpace(dateText))
+        {
+            if (!DateTime.TryParse(
+                    dateText,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeLocal,
+                    out var parsedDate))
+            {
+                throw new InvalidDataException("The purchase date in the legacy file is invalid.");
+            }
+
+            if (parsedDate.Year > 1600)
+            {
+                purchaseDate = parsedDate.Date;
+            }
+        }
+
+        if (kind is null && string.IsNullOrWhiteSpace(store) && purchaseDate is null)
+        {
+            throw new InvalidDataException("The album purchase group contains no usable purchase details.");
+        }
+
+        return new LegacyPurchaseInfo(kind, store, purchaseDate, ReadLegacyEvidenceFiles(purchaseInfo, filePath));
+    }
+
+    private static LegacyEvidenceFiles ReadLegacyEvidenceFiles(JsonElement purchaseInfo, string reportFilePath)
+    {
+        var result = new LegacyEvidenceFiles();
+        if (!TryGetProperty(purchaseInfo, "Files", out var files)
+            || files.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        var reportDirectory = Path.GetDirectoryName(Path.GetFullPath(reportFilePath))
+            ?? throw new InvalidDataException("The legacy report has no containing folder.");
+        var albumDirectories = new List<string>();
+        if (string.Equals(Path.GetFileName(reportDirectory), "Album", StringComparison.OrdinalIgnoreCase))
+        {
+            albumDirectories.Add(reportDirectory);
+        }
+
+        albumDirectories.AddRange(
+            Directory.EnumerateDirectories(reportDirectory, "Album", SearchOption.AllDirectories));
+
+        foreach (var legacyFile in files.EnumerateArray())
+        {
+            if (TryGetProperty(legacyFile, "Excluded", out var excluded)
+                && excluded.ValueKind == JsonValueKind.True)
+            {
+                continue;
+            }
+
+            if (!TryGetProperty(legacyFile, "File", out var file)
+                || file.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var proofType = GetLegacyProofType(GetString(legacyFile, "Filetype"));
+            if (proofType is null)
+            {
+                continue;
+            }
+
+            var describedPath = GetString(file, "Customentrypath")
+                ?? GetString(file, "Customfilepath");
+            var fileName = string.IsNullOrWhiteSpace(describedPath)
+                ? string.Empty
+                : Path.GetFileName(describedPath);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                continue;
+            }
+
+            var sourcePath = albumDirectories
+                .Select(albumDirectory => Path.Combine(albumDirectory, fileName))
+                .FirstOrDefault(File.Exists);
+            if (sourcePath is null)
+            {
+                if (!result.MissingFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
+                {
+                    result.MissingFiles.Add(fileName);
+                }
+
+                continue;
+            }
+
+            result.SetSource(proofType.Value, sourcePath);
+        }
+
+        return result;
+    }
+
+    private static LegacyProofType? GetLegacyProofType(string? fileType)
+    {
+        if (string.IsNullOrWhiteSpace(fileType))
+        {
+            return null;
+        }
+
+        var normalizedFileType = new string(fileType
+            .Where(char.IsLetterOrDigit)
+            .Select(char.ToUpperInvariant)
+            .ToArray());
+        if (normalizedFileType.Contains("PURCHASE", StringComparison.Ordinal))
+        {
+            return LegacyProofType.Purchase;
+        }
+
+        if (normalizedFileType.Contains("PAYMENT", StringComparison.Ordinal))
+        {
+            return LegacyProofType.Payment;
+        }
+
+        return normalizedFileType.Contains("POSSES", StringComparison.Ordinal)
+            ? LegacyProofType.Possession
+            : null;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? GetString(JsonElement element, string propertyName) =>
+        TryGetProperty(element, propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private void SelectProof_Click(object sender, RoutedEventArgs e)
     {
@@ -241,10 +524,6 @@ public partial class AddPurchaseWindow : Window
         StoreComboBox.Visibility = Visibility.Collapsed;
         StoreReadOnly.Visibility = Visibility.Visible;
 
-        PriceReadOnlyText.Text = purchase.Price.ToString("C", CultureInfo.GetCultureInfo("nl-NL"));
-        PriceTextBox.Visibility = Visibility.Collapsed;
-        PriceReadOnly.Visibility = Visibility.Visible;
-
         if (string.IsNullOrWhiteSpace(purchase.Remark))
         {
             RemarkTextBox.Text = string.Empty;
@@ -284,23 +563,40 @@ public partial class AddPurchaseWindow : Window
 
     private void UpdatePossessionProofFileText()
     {
-        PossessionProofFileText.Text = FormatProofFileNames(
-            _possessionProofPdfSourcePath ?? _existingPurchase?.PossessionProofPdfFile ?? _existingPurchase?.PossessionProofFile,
-            _possessionProofNativeSourcePath ?? _existingPurchase?.PossessionProofNativeFile);
+        var pdfPath = _possessionProofPdfSourcePath
+            ?? _existingPurchase?.PossessionProofPdfFile
+            ?? _existingPurchase?.PossessionProofFile;
+        var nativePath = _possessionProofNativeSourcePath ?? _existingPurchase?.PossessionProofNativeFile;
+        PossessionProofFileText.Text = FormatProofFileNames(pdfPath, nativePath);
+        UpdateProofButton(PossessionProofPdfButton, "PDF", !string.IsNullOrWhiteSpace(pdfPath));
+        UpdateProofButton(PossessionProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
     }
 
     private void UpdatePaymentProofFileText()
     {
-        PaymentProofFileText.Text = FormatProofFileNames(
-            _paymentProofPdfSourcePath ?? _existingPurchase?.PaymentProofPdfFile ?? _existingPurchase?.PaymentProofFile,
-            _paymentProofNativeSourcePath ?? _existingPurchase?.PaymentProofNativeFile);
+        var pdfPath = _paymentProofPdfSourcePath
+            ?? _existingPurchase?.PaymentProofPdfFile
+            ?? _existingPurchase?.PaymentProofFile;
+        var nativePath = _paymentProofNativeSourcePath ?? _existingPurchase?.PaymentProofNativeFile;
+        PaymentProofFileText.Text = FormatProofFileNames(pdfPath, nativePath);
+        UpdateProofButton(PaymentProofPdfButton, "PDF", !string.IsNullOrWhiteSpace(pdfPath));
+        UpdateProofButton(PaymentProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
     }
 
     private void UpdatePurchaseProofFileText()
     {
-        PurchaseProofFileText.Text = FormatProofFileNames(
-            _purchaseProofPdfSourcePath ?? _existingPurchase?.PurchaseProofPdfFile ?? _existingPurchase?.PurchaseProofFile,
-            _purchaseProofNativeSourcePath ?? _existingPurchase?.PurchaseProofNativeFile);
+        var pdfPath = _purchaseProofPdfSourcePath
+            ?? _existingPurchase?.PurchaseProofPdfFile
+            ?? _existingPurchase?.PurchaseProofFile;
+        var nativePath = _purchaseProofNativeSourcePath ?? _existingPurchase?.PurchaseProofNativeFile;
+        PurchaseProofFileText.Text = FormatProofFileNames(pdfPath, nativePath);
+        UpdateProofButton(PurchaseProofPdfButton, "PDF", !string.IsNullOrWhiteSpace(pdfPath));
+        UpdateProofButton(PurchaseProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
+    }
+
+    private static void UpdateProofButton(Button button, string label, bool isSelected)
+    {
+        button.Content = isSelected ? $"{label} ✓" : label;
     }
 
     private static string FormatProofFileNames(string? pdfFile, string? nativeFile)
@@ -341,6 +637,16 @@ public partial class AddPurchaseWindow : Window
             MessageBoxImage.Warning);
     }
 
+    private void ShowLegacyImportError(Exception exception)
+    {
+        MessageBox.Show(
+            this,
+            $"Could not import legacy purchase information.{Environment.NewLine}{exception.Message}",
+            "Legacy information could not be loaded",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+    }
+
     private void RemarkTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         UpdateRemarkCharacterCount();
@@ -349,5 +655,56 @@ public partial class AddPurchaseWindow : Window
     private void UpdateRemarkCharacterCount()
     {
         RemarkCharacterCountText.Text = $"{RemarkTextBox.Text.Length}/25";
+    }
+
+    private sealed record LegacyPurchaseInfo(
+        PurchaseKind? Kind,
+        string? Store,
+        DateTime? PurchaseDate,
+        LegacyEvidenceFiles Evidence);
+
+    private enum LegacyProofType
+    {
+        Possession,
+        Purchase,
+        Payment
+    }
+
+    private sealed class LegacyEvidenceFiles
+    {
+        public string? PossessionPdf { get; private set; }
+        public string? PossessionNative { get; private set; }
+        public string? PurchasePdf { get; private set; }
+        public string? PurchaseNative { get; private set; }
+        public string? PaymentPdf { get; private set; }
+        public string? PaymentNative { get; private set; }
+        public List<string> MissingFiles { get; } = [];
+        public bool HasPossessionProof => PossessionPdf is not null || PossessionNative is not null;
+
+        public void SetSource(LegacyProofType proofType, string sourcePath)
+        {
+            var isPdf = string.Equals(Path.GetExtension(sourcePath), ".pdf", StringComparison.OrdinalIgnoreCase);
+            switch (proofType, isPdf)
+            {
+                case (LegacyProofType.Possession, true) when PossessionPdf is null:
+                    PossessionPdf = sourcePath;
+                    break;
+                case (LegacyProofType.Possession, false) when PossessionNative is null:
+                    PossessionNative = sourcePath;
+                    break;
+                case (LegacyProofType.Purchase, true) when PurchasePdf is null:
+                    PurchasePdf = sourcePath;
+                    break;
+                case (LegacyProofType.Purchase, false) when PurchaseNative is null:
+                    PurchaseNative = sourcePath;
+                    break;
+                case (LegacyProofType.Payment, true) when PaymentPdf is null:
+                    PaymentPdf = sourcePath;
+                    break;
+                case (LegacyProofType.Payment, false) when PaymentNative is null:
+                    PaymentNative = sourcePath;
+                    break;
+            }
+        }
     }
 }

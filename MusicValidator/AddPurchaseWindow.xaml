@@ -20,6 +20,35 @@
       <Setter Property="Padding" Value="8,0" />
       <Setter Property="MinHeight" Value="34" />
     </Style>
+    <Style x:Key="EditablePurchaseValueTextBox" TargetType="TextBox">
+      <Setter Property="Background" Value="{StaticResource PanelBackground}" />
+      <Setter Property="Foreground" Value="#E8EDF5" />
+      <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CaretBrush" Value="#E8EDF5" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="TextBoxBorder"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="4">
+              <ScrollViewer x:Name="PART_ContentHost"
+                            Margin="{TemplateBinding Padding}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="TextBoxBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
   <Grid Margin="28">
     <Grid.RowDefinitions>
@@ -28,15 +57,33 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <StackPanel Margin="0,0,0,18">
-      <TextBlock x:Name="WindowTitleText" Text="Add purchase" FontSize="20" FontWeight="SemiBold" />
-      <TextBlock x:Name="WindowDescriptionText"
-                 Text="Save without evidence. Add a PDF, a native file, or both for each proof type; required proof types validate automatically."
-                 Margin="0,5,0,0"
-                 Foreground="{StaticResource MutedBrush}"
-                 FontSize="12"
-                 TextWrapping="Wrap" />
-    </StackPanel>
+    <Grid Margin="0,0,0,18">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock x:Name="WindowTitleText" Text="Add purchase" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock x:Name="WindowDescriptionText"
+                   Text="Save without evidence. Add a PDF, a native file, or both for each proof type; required proof types validate automatically."
+                   Margin="0,5,0,0"
+                   Foreground="{StaticResource MutedBrush}"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+      <Button x:Name="LegacyImportButton"
+              Grid.Column="1"
+              Content="Import legacy"
+              ToolTip="Fill purchase details from a legacy legality report"
+              Padding="8,4"
+              Margin="12,0,0,0"
+              FontSize="10"
+              Background="Transparent"
+              BorderThickness="0"
+              Foreground="{StaticResource MutedBrush}"
+              VerticalAlignment="Top"
+              Click="ImportLegacy_Click" />
+    </Grid>
 
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="0,0,8,0">
@@ -75,14 +122,9 @@
           <StackPanel Grid.Column="2">
             <TextBlock Text="PURCHASE PRICE (€)" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
             <TextBox x:Name="PriceTextBox"
+                     Style="{StaticResource EditablePurchaseValueTextBox}"
                      Height="34"
-                     Padding="8,0"
                      VerticalContentAlignment="Center" />
-            <Border x:Name="PriceReadOnly"
-                    Style="{StaticResource ReadOnlyPurchaseValueBorder}"
-                    Visibility="Collapsed">
-              <TextBlock x:Name="PriceReadOnlyText" VerticalAlignment="Center" />
-            </Border>
           </StackPanel>
         </Grid>
 
@@ -166,13 +208,15 @@
           </StackPanel>
           <DockPanel LastChildFill="True">
             <StackPanel x:Name="PossessionProofSelector" DockPanel.Dock="Right" Orientation="Horizontal">
-              <Button Content="PDF"
+              <Button x:Name="PossessionProofPdfButton"
+                      Content="PDF"
                       ToolTip="Select a PDF"
                       Tag="PossessionPdf"
                       Padding="8,5"
                       Margin="6,0,0,0"
                       Click="SelectProof_Click" />
-              <Button Content="File"
+              <Button x:Name="PossessionProofFileButton"
+                      Content="File"
                       ToolTip="Select a non-PDF native file"
                       Tag="PossessionFile"
                       Padding="8,5"
@@ -199,13 +243,15 @@
           </StackPanel>
           <DockPanel LastChildFill="True">
             <StackPanel x:Name="PaymentProofSelector" DockPanel.Dock="Right" Orientation="Horizontal">
-              <Button Content="PDF"
+              <Button x:Name="PaymentProofPdfButton"
+                      Content="PDF"
                       ToolTip="Select a PDF"
                       Tag="PaymentPdf"
                       Padding="8,5"
                       Margin="6,0,0,0"
                       Click="SelectProof_Click" />
-              <Button Content="File"
+              <Button x:Name="PaymentProofFileButton"
+                      Content="File"
                       ToolTip="Select a non-PDF native file"
                       Tag="PaymentFile"
                       Padding="8,5"
@@ -232,13 +278,15 @@
           </StackPanel>
           <DockPanel LastChildFill="True">
             <StackPanel x:Name="PurchaseProofSelector" DockPanel.Dock="Right" Orientation="Horizontal">
-              <Button Content="PDF"
+              <Button x:Name="PurchaseProofPdfButton"
+                      Content="PDF"
                       ToolTip="Select a PDF"
                       Tag="PurchasePdf"
                       Padding="8,5"
                       Margin="6,0,0,0"
                       Click="SelectProof_Click" />
-              <Button Content="File"
+              <Button x:Name="PurchaseProofFileButton"
+                      Content="File"
                       ToolTip="Select a non-PDF native file"
                       Tag="PurchaseFile"
                       Padding="8,5"

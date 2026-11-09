@@ -39,6 +39,9 @@
               CanUserDeleteRows="False"
               HeadersVisibility="Column"
               GridLinesVisibility="None"
+              SelectionMode="Extended"
+              SelectionUnit="FullRow"
+              SelectionChanged="SongsGrid_SelectionChanged"
               RowHeight="36"
               ColumnHeaderHeight="40"
               Background="{StaticResource HeaderBackground}"
@@ -64,6 +67,7 @@
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <TextBlock x:Name="SongReadStatus"
                  Foreground="{StaticResource MutedBrush}"
@@ -72,10 +76,16 @@
                  TextTrimming="CharacterEllipsis" />
       <Button x:Name="AddSongsButton"
               Grid.Column="1"
-              Content="Select songs"
+              Content="Add songs"
               Margin="0,0,8,0"
               Click="AddSongs_Click" />
-      <Button Grid.Column="2"
+      <Button x:Name="RemoveSongsButton"
+              Grid.Column="2"
+              Content="Remove selected"
+              Margin="0,0,8,0"
+              IsEnabled="False"
+              Click="RemoveSongs_Click" />
+      <Button Grid.Column="3"
               Content="Close"
               MinWidth="84"
               Click="Close_Click" />

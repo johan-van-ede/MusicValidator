@@ -100,10 +100,49 @@ public partial class PurchaseDetailsWindow : Window
         }
     }
 
+    private void SongsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RemoveSongsButton.IsEnabled = SongsGrid.SelectedItems.Count > 0;
+    }
+
+    private void RemoveSongs_Click(object sender, RoutedEventArgs e)
+    {
+        var songsToRemove = SongsGrid.SelectedItems.OfType<PurchaseSong>().ToHashSet();
+        if (songsToRemove.Count == 0)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            this,
+            $"Remove {songsToRemove.Count:N0} selected song(s) from this purchase?{Environment.NewLine}The music files will not be deleted.",
+            "Remove songs from purchase",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var updatedSongs = _purchase.Songs
+            .Where(song => !songsToRemove.Contains(song))
+            .ToList();
+        if (!_saveSongChanges(_purchase, updatedSongs))
+        {
+            SongReadStatus.Text = "Could not save the removed songs.";
+            return;
+        }
+
+        _purchase.Songs = updatedSongs;
+        UpdatePurchaseView();
+        SongReadStatus.Text = $"{songsToRemove.Count:N0} songs removed from this purchase.";
+    }
+
     private void UpdatePurchaseView()
     {
         PurchaseSummaryText.Text = _purchase.Details;
         SongsGrid.ItemsSource = _purchase.Songs;
+        RemoveSongsButton.IsEnabled = false;
         EvidencePanel.Children.Clear();
         AddEvidenceGroup(
             "Open proof of ownership",

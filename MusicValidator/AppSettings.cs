@@ -13,6 +13,7 @@ internal sealed class AppSettings
     public bool IncludeSubfolders { get; set; } = true;
     public List<string> AudioExtensions { get; set; } = [.. SupportedAudioExtensions];
     public string? MusicFolderPath { get; set; }
+    public List<string> MusicFolderPaths { get; set; } = [];
     public string PurchaseStorageFolder { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "MusicValidator");
@@ -26,6 +27,7 @@ internal sealed class AppSettings
         IncludeSubfolders = IncludeSubfolders,
         AudioExtensions = [.. AudioExtensions],
         MusicFolderPath = MusicFolderPath,
+        MusicFolderPaths = [.. MusicFolderPaths],
         PurchaseStorageFolder = PurchaseStorageFolder
     };
 }
@@ -47,6 +49,22 @@ internal static class SettingsStore
         var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath))
             ?? throw new InvalidDataException("The settings file is empty or invalid.");
         var supportedExtensions = AppSettings.SupportedAudioExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (settings.MusicFolderPaths is null)
+        {
+            settings.MusicFolderPaths = [];
+        }
+
+        if (settings.MusicFolderPaths.Count == 0 && !string.IsNullOrWhiteSpace(settings.MusicFolderPath))
+        {
+            settings.MusicFolderPaths.Add(settings.MusicFolderPath);
+        }
+
+        settings.MusicFolderPaths = settings.MusicFolderPaths
+            .Where(folderPath => !string.IsNullOrWhiteSpace(folderPath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        settings.MusicFolderPath = settings.MusicFolderPaths.FirstOrDefault();
 
         if (settings.AudioExtensions is null
             || settings.AudioExtensions.Count == 0
