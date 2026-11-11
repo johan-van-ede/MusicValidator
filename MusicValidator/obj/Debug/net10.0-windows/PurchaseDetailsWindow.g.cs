@@ -99,7 +99,7 @@ namespace MusicValidator {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/MusicValidator;V0.4.0.0;component/purchasedetailswindow.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/MusicValidator;V0.5.0.0;component/purchasedetailswindow.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\PurchaseDetailsWindow.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);
