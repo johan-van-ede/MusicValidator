@@ -20,7 +20,7 @@ public partial class AddPurchaseWindow : Window
 
     internal PurchaseRecord? Purchase { get; private set; }
 
-    internal AddPurchaseWindow(IEnumerable<string> previousStores, PurchaseRecord? purchaseToEdit = null)
+    internal AddPurchaseWindow(IEnumerable<string?> previousStores, PurchaseRecord? purchaseToEdit = null)
     {
         InitializeComponent();
         _existingPurchase = purchaseToEdit;
@@ -51,6 +51,27 @@ public partial class AddPurchaseWindow : Window
         UpdateProofVisibility();
     }
 
+    private void UnknownPhysicalAlbumCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (UnknownPhysicalAlbumCheckBox.IsChecked == true
+            && ((PurchaseKindComboBox.SelectedItem as ComboBoxItem)?.Tag as string)
+                != nameof(PurchaseKind.Physical))
+        {
+            UnknownPhysicalAlbumCheckBox.IsChecked = false;
+            return;
+        }
+
+        UpdateUnknownPhysicalAlbumFields();
+        UpdateProofVisibility();
+    }
+
+    private void PriceUnknownCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        var isPriceUnknown = PriceUnknownCheckBox.IsChecked == true;
+        PriceTextBox.Text = isPriceUnknown ? "Unknown" : string.Empty;
+        PriceTextBox.IsEnabled = !isPriceUnknown && UnknownPhysicalAlbumCheckBox.IsChecked != true;
+    }
+
     private void PaymentMethodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateProofVisibility();
@@ -72,6 +93,7 @@ public partial class AddPurchaseWindow : Window
         try
         {
             var legacyInfo = ReadLegacyPurchaseInfo(dialog.FileName);
+            UnknownPhysicalAlbumCheckBox.IsChecked = false;
             var importPossessionProof = legacyInfo.Evidence.HasPossessionProof
                 && MessageBox.Show(
                     this,
@@ -415,15 +437,17 @@ public partial class AddPurchaseWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
         var store = StoreComboBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(store))
+        if (!isUnknownPhysicalAlbum && string.IsNullOrWhiteSpace(store))
         {
             ShowInputError("Enter the store where the songs were purchased.");
             StoreComboBox.Focus();
             return;
         }
 
-        if (PurchaseDatePicker.SelectedDate is not DateTime purchaseDate)
+        var purchaseDate = PurchaseDatePicker.SelectedDate;
+        if (!isUnknownPhysicalAlbum && purchaseDate is null)
         {
             ShowInputError("Select the purchase date.");
             PurchaseDatePicker.Focus();
@@ -441,16 +465,23 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
-        if (!decimal.TryParse(
-                PriceTextBox.Text,
-                NumberStyles.Currency,
-                CultureInfo.CurrentCulture,
-                out var price)
-            || price < 0)
+        var isPriceUnknown = isUnknownPhysicalAlbum || PriceUnknownCheckBox.IsChecked == true;
+        decimal? price = null;
+        if (!isPriceUnknown)
         {
-            ShowInputError("Enter a valid, non-negative purchase price.");
-            PriceTextBox.Focus();
-            return;
+            if (!decimal.TryParse(
+                    PriceTextBox.Text,
+                    NumberStyles.Currency,
+                    CultureInfo.CurrentCulture,
+                    out var parsedPrice)
+                || parsedPrice < 0)
+            {
+                ShowInputError("Enter a valid, non-negative purchase price.");
+                PriceTextBox.Focus();
+                return;
+            }
+
+            price = parsedPrice;
         }
 
         if (!Enum.TryParse<PurchaseKind>(
@@ -462,9 +493,18 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
-        if (!Enum.TryParse<PaymentMethod>(
+        if (isUnknownPhysicalAlbum && purchaseKind != PurchaseKind.Physical)
+        {
+            ShowInputError("Unknown purchase details can only be used for a physical album.");
+            PurchaseKindComboBox.Focus();
+            return;
+        }
+
+        var paymentMethod = PaymentMethod.Cash;
+        if (!isUnknownPhysicalAlbum
+            && !Enum.TryParse<PaymentMethod>(
                 (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string,
-                out var paymentMethod))
+                out paymentMethod))
         {
             ShowInputError("Select whether the payment was cash or digital.");
             PaymentMethodComboBox.Focus();
@@ -474,13 +514,15 @@ public partial class AddPurchaseWindow : Window
         Purchase = new PurchaseRecord
         {
             Id = existingPurchase?.Id ?? Guid.NewGuid(),
-            PurchaseDate = purchaseDate.Date,
-            Store = store,
+            PurchaseDate = isUnknownPhysicalAlbum ? null : purchaseDate?.Date,
+            Store = isUnknownPhysicalAlbum ? null : store,
             Remark = remark,
             Price = price,
             Kind = purchaseKind,
             PaymentMethod = paymentMethod,
-            ManuallyValidated = ManualValidationCheckBox.IsChecked == true,
+            IsUnknownPhysicalAlbum = isUnknownPhysicalAlbum,
+            IsPriceUnknown = isPriceUnknown,
+            ManuallyValidated = !isUnknownPhysicalAlbum && ManualValidationCheckBox.IsChecked == true,
             PossessionProofPdfFile = existingPurchase?.PossessionProofPdfFile,
             PossessionProofNativeFile = existingPurchase?.PossessionProofNativeFile,
             PaymentProofPdfFile = existingPurchase?.PaymentProofPdfFile,
@@ -510,17 +552,20 @@ public partial class AddPurchaseWindow : Window
         SavePurchaseButton.Content = "Save changes";
 
         PurchaseDatePicker.SelectedDate = purchase.PurchaseDate;
-        StoreComboBox.Text = purchase.Store;
-        PriceTextBox.Text = purchase.Price.ToString("0.00", CultureInfo.CurrentCulture);
+        StoreComboBox.Text = purchase.Store ?? string.Empty;
+        PriceTextBox.Text = purchase.Price?.ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
         SelectComboItem(PurchaseKindComboBox, purchase.Kind?.ToString());
         SelectComboItem(PaymentMethodComboBox, purchase.PaymentMethod?.ToString());
         ManualValidationCheckBox.IsChecked = purchase.ManuallyValidated;
+        UnknownPhysicalAlbumCheckBox.IsChecked = purchase.IsUnknownPhysicalAlbum;
+        PriceUnknownCheckBox.IsChecked = purchase.IsPriceUnknown || !purchase.Price.HasValue;
+        PriceTextBox.IsEnabled = !purchase.IsUnknownPhysicalAlbum && PriceUnknownCheckBox.IsChecked != true;
 
-        PurchaseDateReadOnlyText.Text = purchase.PurchaseDate.ToString("d", CultureInfo.CurrentCulture);
+        PurchaseDateReadOnlyText.Text = purchase.PurchaseDate?.ToString("d", CultureInfo.CurrentCulture) ?? "Unknown";
         PurchaseDatePicker.Visibility = Visibility.Collapsed;
         PurchaseDateReadOnly.Visibility = Visibility.Visible;
 
-        StoreReadOnlyText.Text = purchase.Store;
+        StoreReadOnlyText.Text = purchase.Store ?? "Unknown";
         StoreComboBox.Visibility = Visibility.Collapsed;
         StoreReadOnly.Visibility = Visibility.Visible;
 
@@ -537,7 +582,7 @@ public partial class AddPurchaseWindow : Window
 
         if (purchase.Kind.HasValue)
         {
-            PurchaseKindReadOnlyText.Text = purchase.Kind.Value.ToString();
+            PurchaseKindReadOnlyText.Text = purchase.MusicMediumDisplay;
             PurchaseKindComboBox.Visibility = Visibility.Collapsed;
             PurchaseKindReadOnly.Visibility = Visibility.Visible;
         }
@@ -619,12 +664,56 @@ public partial class AddPurchaseWindow : Window
     {
         var purchaseKind = (PurchaseKindComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
         var paymentMethod = (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        var isPhysical = purchaseKind == nameof(PurchaseKind.Physical);
+        var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
+        if (!isPhysical && _existingPurchase is null && isUnknownPhysicalAlbum)
+        {
+            UnknownPhysicalAlbumCheckBox.IsChecked = false;
+            isUnknownPhysicalAlbum = false;
+        }
+
         PossessionProofPanel.Visibility = purchaseKind == nameof(PurchaseKind.Physical)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        UnknownPhysicalAlbumCheckBox.Visibility = isPhysical
+            && (_existingPurchase is null || _existingPurchase.IsUnknownPhysicalAlbum)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        UnknownPhysicalAlbumCheckBox.IsEnabled = _existingPurchase is null;
+        PurchaseProofRequiredIndicator.Visibility = isUnknownPhysicalAlbum
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         PaymentProofPanel.Visibility = paymentMethod == nameof(PaymentMethod.Digital)
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void UpdateUnknownPhysicalAlbumFields()
+    {
+        var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
+        PurchaseDatePicker.IsEnabled = !isUnknownPhysicalAlbum;
+        StoreComboBox.IsEnabled = !isUnknownPhysicalAlbum;
+        PriceTextBox.IsEnabled = !isUnknownPhysicalAlbum;
+        PaymentMethodComboBox.IsEnabled = !isUnknownPhysicalAlbum;
+        ManualValidationCheckBox.IsEnabled = !isUnknownPhysicalAlbum;
+        if (isUnknownPhysicalAlbum)
+        {
+            PurchaseDatePicker.SelectedDate = null;
+            StoreComboBox.Text = string.Empty;
+            SelectComboItem(PaymentMethodComboBox, nameof(PaymentMethod.Cash));
+            ManualValidationCheckBox.IsChecked = false;
+            PriceTextBox.Text = "Unknown";
+        }
+        else if (PriceUnknownCheckBox.IsChecked != true)
+        {
+            PriceTextBox.Text = string.Empty;
+        }
+
+        PriceUnknownCheckBox.Visibility = isUnknownPhysicalAlbum
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        PriceUnknownCheckBox.IsEnabled = !isUnknownPhysicalAlbum;
+        PriceTextBox.IsEnabled = !isUnknownPhysicalAlbum && PriceUnknownCheckBox.IsChecked != true;
     }
 
     private void ShowInputError(string message)

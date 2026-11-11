@@ -299,14 +299,13 @@
                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <DataGrid.Columns>
               <DataGridTextColumn Header="DATE"
-                                  Binding="{Binding PurchaseDate, StringFormat={}{0:d}}"
+                                  Binding="{Binding PurchaseDateDisplay}"
                                   Width="100" />
-              <DataGridTextColumn Header="STORE" Binding="{Binding Store}" Width="*" />
+              <DataGridTextColumn Header="STORE" Binding="{Binding StoreDisplay}" Width="*" />
               <DataGridTextColumn Header="REMARK" Binding="{Binding Remark}" Width="*" />
-              <DataGridTextColumn Header="TYPE" Binding="{Binding Kind}" Width="78" />
+              <DataGridTextColumn Header="MUSIC MEDIUM" Binding="{Binding MusicMediumDisplay}" Width="140" />
               <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentMethod}" Width="88" />
-              <DataGridTextColumn Header="PRICE (€)"
-                                  Binding="{Binding Price, StringFormat={}{0:C}, ConverterCulture=nl-NL}"
+              <DataGridTextColumn Header="PRICE (€)" Binding="{Binding PriceDisplay}"
                                   Width="105" />
               <DataGridTextColumn Header="SONGS" Binding="{Binding SongCount}" Width="70" />
               <DataGridTemplateColumn Header="STATUS" Width="150">

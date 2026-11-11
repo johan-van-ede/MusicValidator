@@ -158,7 +158,9 @@ public partial class MainWindow : Window
 
         _purchases.Insert(0, purchase);
         UpdatePurchaseCount();
-        StatusText.Text = $"Purchase from {purchase.Store} saved.";
+        StatusText.Text = purchase.IsUnknownPhysicalAlbum
+            ? $"Physical album {purchase.Remark} saved."
+            : $"Purchase from {purchase.StoreDisplay} saved.";
     }
 
     private void PurchasesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -187,7 +189,7 @@ public partial class MainWindow : Window
 
         var result = MessageBox.Show(
             this,
-            $"Remove the purchase from {purchase.Store} on {purchase.PurchaseDate:d}?{Environment.NewLine}Its song associations will be removed, but the audio files will not be deleted.",
+            $"Remove the purchase from {purchase.StoreDisplay} on {purchase.PurchaseDateDisplay}?{Environment.NewLine}Its song associations will be removed, but the audio files will not be deleted.",
             "Remove purchase",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -204,7 +206,7 @@ public partial class MainWindow : Window
         _purchases.Remove(purchase);
         RebuildAssignedSongPaths();
         UpdatePurchaseCount();
-        StatusText.Text = $"Purchase from {purchase.Store} removed.";
+        StatusText.Text = $"Purchase from {purchase.StoreDisplay} removed.";
     }
 
     private void PurchaseDetails_Click(object sender, RoutedEventArgs e)
@@ -250,7 +252,7 @@ public partial class MainWindow : Window
         RebuildAssignedSongPaths();
         UpdatePurchaseCount();
         PurchasesGrid.Items.Refresh();
-        StatusText.Text = $"{purchase.Store}: {updatedPurchase.ValidationStatus}.";
+        StatusText.Text = $"{purchase.StoreDisplay}: {updatedPurchase.ValidationStatus}.";
     }
 
     private void MusicGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -341,7 +343,7 @@ public partial class MainWindow : Window
         UpdatePurchaseCount();
         PurchasesGrid.Items.Refresh();
         UpdateValidationMetric();
-        StatusText.Text = $"{newSongs.Count:N0} songs assigned to {purchase.Store}.";
+        StatusText.Text = $"{newSongs.Count:N0} songs assigned to {purchase.StoreDisplay}.";
     }
 
     private void SelectPurchaseFolder_Click(object sender, RoutedEventArgs e)

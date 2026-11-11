@@ -120,11 +120,24 @@
             </Border>
           </StackPanel>
           <StackPanel Grid.Column="2">
-            <TextBlock Text="PURCHASE PRICE (€)" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+              <TextBlock Text="PURCHASE PRICE (€)" Foreground="{StaticResource MutedBrush}" FontSize="10" />
+              <TextBlock Text=" *"
+                         Foreground="#E06B75"
+                         FontSize="11"
+                         ToolTip="A purchase price is required unless you mark it as unknown." />
+            </StackPanel>
             <TextBox x:Name="PriceTextBox"
                      Style="{StaticResource EditablePurchaseValueTextBox}"
                      Height="34"
                      VerticalContentAlignment="Center" />
+            <CheckBox x:Name="PriceUnknownCheckBox"
+                      Content="Amount unknown"
+                      Margin="0,5,0,0"
+                      Foreground="{StaticResource MutedBrush}"
+                      FontSize="11"
+                      Checked="PriceUnknownCheckBox_Changed"
+                      Unchecked="PriceUnknownCheckBox_Changed" />
           </StackPanel>
         </Grid>
 
@@ -135,7 +148,7 @@
             <ColumnDefinition Width="1.5*" />
           </Grid.ColumnDefinitions>
           <StackPanel Margin="0,0,12,0">
-            <TextBlock Text="PURCHASE TYPE" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
+            <TextBlock Text="MUSIC MEDIUM" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,0,7" />
             <ComboBox x:Name="PurchaseKindComboBox"
                       Height="34"
                       VerticalContentAlignment="Center"
@@ -195,6 +208,14 @@
             </Border>
           </StackPanel>
         </Grid>
+
+        <CheckBox x:Name="UnknownPhysicalAlbumCheckBox"
+                  Content="Physical album; purchase details unknown"
+                  Margin="0,12,0,0"
+                  Foreground="{StaticResource MutedBrush}"
+                  Visibility="Collapsed"
+                  Checked="UnknownPhysicalAlbumCheckBox_Changed"
+                  Unchecked="UnknownPhysicalAlbumCheckBox_Changed" />
 
         <StackPanel x:Name="PossessionProofPanel" Visibility="Collapsed" Margin="0,18,0,0">
           <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
@@ -271,7 +292,8 @@
             <TextBlock Text="PROOF OF PURCHASE"
                        Foreground="{StaticResource MutedBrush}"
                        FontSize="10" />
-            <TextBlock Text=" *"
+            <TextBlock x:Name="PurchaseProofRequiredIndicator"
+                       Text=" *"
                        Foreground="#E06B75"
                        FontSize="11"
                        ToolTip="Required for automatic validation, but not for saving." />

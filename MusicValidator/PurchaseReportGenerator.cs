@@ -16,7 +16,9 @@ internal static class PurchaseReportGenerator
         try
         {
             using var document = new PdfDocument();
-            document.Info.Title = $"Purchase report - {purchase.Store}";
+            document.Info.Title = purchase.IsUnknownPhysicalAlbum
+                ? $"Physical album - {purchase.Remark} (purchase details unknown)"
+                : $"Purchase report - {purchase.StoreDisplay}";
             AddPurchaseSummary(document, purchase);
             AppendProofPdfs(document, purchaseStorageFolder, purchase);
             document.Save(temporaryPath);
@@ -47,11 +49,13 @@ internal static class PurchaseReportGenerator
     {
         using var writer = new ReportPageWriter(document);
         writer.WriteHeading("Purchase report", 18);
-        writer.WriteField("Purchase date", purchase.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-        writer.WriteField("Store", purchase.Store);
+        writer.WriteField(
+            "Purchase date",
+            purchase.PurchaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Unknown");
+        writer.WriteField("Store", purchase.StoreDisplay);
         writer.WriteField("Remark", string.IsNullOrWhiteSpace(purchase.Remark) ? "None" : purchase.Remark);
-        writer.WriteField("Price", purchase.Price.ToString("C", CultureInfo.CurrentCulture));
-        writer.WriteField("Purchase type", purchase.Kind?.ToString() ?? "Not specified");
+        writer.WriteField("Price", purchase.Price?.ToString("C", CultureInfo.CurrentCulture) ?? "Unknown");
+        writer.WriteField("Music medium", purchase.MusicMediumDisplay);
         writer.WriteField("Payment method", purchase.PaymentMethod?.ToString() ?? "Not specified");
         writer.WriteField("Validation", purchase.ValidationStatus);
 

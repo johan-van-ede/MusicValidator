@@ -39,12 +39,12 @@ internal static class PurchaseChecker
     private static PurchaseCheckResult Check(string purchaseStorageFolder, PurchaseRecord purchase)
     {
         var issues = new List<string>();
-        if (purchase.PurchaseDate == default)
+        if (!purchase.IsUnknownPhysicalAlbum && !purchase.PurchaseDate.HasValue)
         {
             issues.Add("Purchase date is missing.");
         }
 
-        if (string.IsNullOrWhiteSpace(purchase.Store))
+        if (!purchase.IsUnknownPhysicalAlbum && string.IsNullOrWhiteSpace(purchase.Store))
         {
             issues.Add("Store is missing.");
         }
@@ -54,14 +54,22 @@ internal static class PurchaseChecker
             issues.Add("Remark is required.");
         }
 
-        if (purchase.Price < 0)
+        if (!purchase.IsUnknownPhysicalAlbum && !purchase.IsPriceUnknown && !purchase.Price.HasValue)
+        {
+            issues.Add("Price is missing.");
+        }
+        else if (!purchase.IsUnknownPhysicalAlbum && purchase.IsPriceUnknown && purchase.Price.HasValue)
+        {
+            issues.Add("Price is marked unknown but a price is present.");
+        }
+        else if (purchase.Price < 0)
         {
             issues.Add("Price cannot be negative.");
         }
 
         if (!purchase.Kind.HasValue)
         {
-            issues.Add("Purchase type is missing.");
+            issues.Add("Music medium is missing.");
         }
 
         if (!purchase.PaymentMethod.HasValue)
@@ -69,7 +77,18 @@ internal static class PurchaseChecker
             issues.Add("Payment method is missing.");
         }
 
+        if (purchase.IsUnknownPhysicalAlbum && purchase.Kind != PurchaseKind.Physical)
+        {
+            issues.Add("Unknown purchase details are only valid for a physical album.");
+        }
+
+        if (purchase.IsUnknownPhysicalAlbum && purchase.PaymentMethod != PaymentMethod.Cash)
+        {
+            issues.Add("An unknown physical album must use cash as the payment method.");
+        }
+
         var allEvidenceFilesValid = true;
+        var purchaseProofRequired = !purchase.IsUnknownPhysicalAlbum;
         var purchaseProof = CheckEvidenceGroup(
             purchaseStorageFolder,
             purchase,
@@ -77,7 +96,7 @@ internal static class PurchaseChecker
             purchase.PurchaseProofPdfFile,
             purchase.PurchaseProofNativeFile,
             purchase.PurchaseProofFile,
-            isRequired: true,
+            isRequired: purchaseProofRequired,
             ref allEvidenceFilesValid,
             issues);
         var possessionProof = CheckEvidenceGroup(
@@ -107,12 +126,15 @@ internal static class PurchaseChecker
             && paymentProof.IsComplete
             && allEvidenceFilesValid;
 
-        if (!purchase.ManuallyValidated && !purchaseProof.IsComplete && !purchaseProof.HasEvidence)
+        if (!purchase.IsUnknownPhysicalAlbum
+            && !purchase.ManuallyValidated
+            && !purchaseProof.IsComplete
+            && !purchaseProof.HasEvidence)
         {
             issues.Add("Proof of purchase is required.");
         }
 
-        if (!purchase.ManuallyValidated
+        if ((!purchase.ManuallyValidated || purchase.IsUnknownPhysicalAlbum)
             && purchase.Kind == PurchaseKind.Physical
             && !possessionProof.IsComplete
             && !possessionProof.HasEvidence)
@@ -128,12 +150,13 @@ internal static class PurchaseChecker
             issues.Add("Proof of payment is required for a digital payment.");
         }
 
+        var isManuallyValidated = purchase.ManuallyValidated && !purchase.IsUnknownPhysicalAlbum;
         var isValid = issues.Count == 0
-            && (purchase.ManuallyValidated || hasCompleteEvidence);
+            && (isManuallyValidated || hasCompleteEvidence);
         return new PurchaseCheckResult(
             isValid,
             hasCompleteEvidence,
-            purchase.ManuallyValidated,
+            isManuallyValidated,
             issues);
     }
 

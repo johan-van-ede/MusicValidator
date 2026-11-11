@@ -20,12 +20,14 @@ internal enum PaymentMethod
 internal sealed class PurchaseRecord
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public DateTime PurchaseDate { get; set; } = DateTime.Today;
-    public string Store { get; set; } = string.Empty;
+    public DateTime? PurchaseDate { get; set; } = DateTime.Today;
+    public string? Store { get; set; } = string.Empty;
     public string Remark { get; set; } = string.Empty;
-    public decimal Price { get; set; }
+    public decimal? Price { get; set; } = 0m;
     public PurchaseKind? Kind { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
+    public bool IsUnknownPhysicalAlbum { get; set; }
+    public bool IsPriceUnknown { get; set; }
     public bool ManuallyValidated { get; set; }
     public string? PossessionProofPdfFile { get; set; }
     public string? PossessionProofNativeFile { get; set; }
@@ -87,16 +89,30 @@ internal sealed class PurchaseRecord
             " | ",
             new[]
             {
-                PurchaseDate.ToString("d"),
-                Store,
+                PurchaseDateDisplay,
+                StoreDisplay,
                 Remark,
-                Kind?.ToString(),
+                MusicMediumDisplay,
                 PaymentMethod?.ToString(),
-                $"{Price:C}",
+                PriceDisplay,
                 ValidationStatus,
                 $"{SongCount:N0} songs"
             }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    [JsonIgnore]
+    public string MusicMediumDisplay => IsUnknownPhysicalAlbum
+        ? "Physical album (purchase details unknown)"
+        : Kind?.ToString() ?? "Not specified";
+
+    [JsonIgnore]
+    public string PurchaseDateDisplay => PurchaseDate?.ToString("d") ?? "Unknown";
+
+    [JsonIgnore]
+    public string StoreDisplay => string.IsNullOrWhiteSpace(Store) ? "Unknown" : Store;
+
+    [JsonIgnore]
+    public string PriceDisplay => Price?.ToString("C", CultureInfo.GetCultureInfo("nl-NL")) ?? "Unknown";
 
     [JsonIgnore]
     public string DisplayLabel => Details;
@@ -489,26 +505,50 @@ internal static class PurchaseStore
 
     private static string CreatePurchaseDataFileName(PurchaseRecord purchase)
     {
-        var date = purchase.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var store = SanitizeFolderPart(purchase.Store, "Unknown store");
+        if (purchase.IsUnknownPhysicalAlbum)
+        {
+            return $"{CreateUnknownPhysicalAlbumName(purchase)} - purchase-data.json";
+        }
+
+        var date = purchase.PurchaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Unknown date";
+        var store = SanitizeFolderPart(purchase.Store ?? string.Empty, "Unknown store");
         return $"{date} - {store} - purchase-data.json";
     }
 
     private static string CreatePurchaseReportFileName(PurchaseRecord purchase)
     {
-        var date = purchase.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var store = SanitizeFolderPart(purchase.Store, "Unknown store");
+        if (purchase.IsUnknownPhysicalAlbum)
+        {
+            return $"{CreateUnknownPhysicalAlbumName(purchase)} - purchase-report.pdf";
+        }
+
+        var date = purchase.PurchaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Unknown date";
+        var store = SanitizeFolderPart(purchase.Store ?? string.Empty, "Unknown store");
         return $"{date} - {store} - purchase-report.pdf";
     }
 
     private static void ValidatePurchase(PurchaseRecord purchase)
     {
-        if (purchase is null
-            || purchase.Id == Guid.Empty
-            || purchase.PurchaseDate == default
-            || string.IsNullOrWhiteSpace(purchase.Store)
+        if (purchase is null)
+        {
+            throw new InvalidDataException("A purchase record contains invalid data.");
+        }
+
+        var purchaseDetailsInvalid = purchase.IsUnknownPhysicalAlbum
+            ? purchase.Kind != PurchaseKind.Physical
+                || purchase.PaymentMethod != PaymentMethod.Cash
+                || purchase.PurchaseDate.HasValue
+                || !string.IsNullOrWhiteSpace(purchase.Store)
+                || purchase.Price.HasValue
+            : !purchase.PurchaseDate.HasValue
+                || purchase.PurchaseDate == default
+                || string.IsNullOrWhiteSpace(purchase.Store)
+                || (!purchase.Price.HasValue && !purchase.IsPriceUnknown)
+                || (purchase.Price.HasValue && purchase.IsPriceUnknown)
+                || purchase.Price < 0;
+        if (purchase.Id == Guid.Empty
+            || purchaseDetailsInvalid
             || purchase.Remark is null
-            || purchase.Price < 0
             || purchase.Songs is null
             || purchase.Songs.Any(song => song is null || string.IsNullOrWhiteSpace(song.FilePath)))
         {
@@ -575,7 +615,7 @@ internal static class PurchaseStore
 
         var evidenceFolder = Path.Combine(purchaseFolder, "evidence");
         Directory.CreateDirectory(evidenceFolder);
-        var date = purchase.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var date = purchase.PurchaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Onbekend";
         var remark = SanitizeFolderPart(
             string.IsNullOrWhiteSpace(purchase.Remark) ? "No remark" : purchase.Remark,
             "No remark");
@@ -597,11 +637,24 @@ internal static class PurchaseStore
 
     private static string CreateFolderName(PurchaseRecord purchase, HashSet<string> existingNames)
     {
-        var store = SanitizeFolderPart(purchase.Store, "Unknown store");
+        if (purchase.IsUnknownPhysicalAlbum)
+        {
+            var unknownBaseName = CreateUnknownPhysicalAlbumName(purchase);
+            var unknownCandidate = unknownBaseName;
+            var unknownSuffix = 2;
+            while (!existingNames.Add(unknownCandidate))
+            {
+                unknownCandidate = $"{unknownBaseName} - {unknownSuffix++}";
+            }
+
+            return unknownCandidate;
+        }
+
+        var store = SanitizeFolderPart(purchase.Store ?? string.Empty, "Unknown store");
         var remark = SanitizeFolderPart(
             string.IsNullOrWhiteSpace(purchase.Remark) ? "No remark" : purchase.Remark,
             "No remark");
-        var date = purchase.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var date = purchase.PurchaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Unknown date";
         var baseName = $"{date} - {store} - {remark}";
 
         if (existingNames.Add(baseName))
@@ -618,6 +671,14 @@ internal static class PurchaseStore
         }
 
         return candidate;
+    }
+
+    private static string CreateUnknownPhysicalAlbumName(PurchaseRecord purchase)
+    {
+        var remark = SanitizeFolderPart(
+            string.IsNullOrWhiteSpace(purchase.Remark) ? "Geen opmerking" : purchase.Remark,
+            "Geen opmerking");
+        return $"Onbekend - Fysiek album - {remark}";
     }
 
     private static string SanitizeFolderPart(string value, string fallback)
