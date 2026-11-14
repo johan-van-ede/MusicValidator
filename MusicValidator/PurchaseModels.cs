@@ -28,6 +28,7 @@ internal sealed class PurchaseRecord
     public PaymentMethod? PaymentMethod { get; set; }
     public bool IsUnknownPhysicalAlbum { get; set; }
     public bool IsPriceUnknown { get; set; }
+    public bool IsFreeDigitalRelease { get; set; }
     public bool ManuallyValidated { get; set; }
     public string? PossessionProofPdfFile { get; set; }
     public string? PossessionProofNativeFile { get; set; }
@@ -35,6 +36,8 @@ internal sealed class PurchaseRecord
     public string? PaymentProofNativeFile { get; set; }
     public string? PurchaseProofPdfFile { get; set; }
     public string? PurchaseProofNativeFile { get; set; }
+    public string? FreeReleaseProofPdfFile { get; set; }
+    public string? FreeReleaseProofNativeFile { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PossessionProofFile { get; set; }
@@ -66,6 +69,12 @@ internal sealed class PurchaseRecord
     public string? PurchaseProofNativeSourcePath { get; set; }
 
     [JsonIgnore]
+    public string? FreeReleaseProofPdfSourcePath { get; set; }
+
+    [JsonIgnore]
+    public string? FreeReleaseProofNativeSourcePath { get; set; }
+
+    [JsonIgnore]
     public int SongCount => Songs.Count;
 
     [JsonIgnore]
@@ -93,7 +102,7 @@ internal sealed class PurchaseRecord
                 StoreDisplay,
                 Remark,
                 MusicMediumDisplay,
-                PaymentMethod?.ToString(),
+                PaymentMethodDisplay,
                 PriceDisplay,
                 ValidationStatus,
                 $"{SongCount:N0} songs"
@@ -103,7 +112,14 @@ internal sealed class PurchaseRecord
     [JsonIgnore]
     public string MusicMediumDisplay => IsUnknownPhysicalAlbum
         ? "Physical album (purchase details unknown)"
-        : Kind?.ToString() ?? "Not specified";
+        : IsFreeDigitalRelease
+            ? "Digital (free release)"
+            : Kind?.ToString() ?? "Not specified";
+
+    [JsonIgnore]
+    public string PaymentMethodDisplay => IsFreeDigitalRelease
+        ? "Not applicable"
+        : PaymentMethod?.ToString() ?? "Not specified";
 
     [JsonIgnore]
     public string PurchaseDateDisplay => PurchaseDate?.ToString("d") ?? "Unknown";
@@ -240,7 +256,9 @@ internal static class PurchaseStore
                 purchase.PaymentProofPdfFile,
                 purchase.PaymentProofNativeFile,
                 purchase.PurchaseProofPdfFile,
-                purchase.PurchaseProofNativeFile
+                purchase.PurchaseProofNativeFile,
+                purchase.FreeReleaseProofPdfFile,
+                purchase.FreeReleaseProofNativeFile
             };
             var copiedFiles = new List<string>();
             try
@@ -287,6 +305,20 @@ internal static class PurchaseStore
                     purchase,
                     "Proof of purchase",
                     copiedFiles);
+                purchase.FreeReleaseProofPdfFile = CopyEvidenceIfSelected(
+                    purchase.FreeReleaseProofPdfSourcePath,
+                    purchase.FreeReleaseProofPdfFile,
+                    purchaseFolder,
+                    purchase,
+                    "Proof of free release",
+                    copiedFiles);
+                purchase.FreeReleaseProofNativeFile = CopyEvidenceIfSelected(
+                    purchase.FreeReleaseProofNativeSourcePath,
+                    purchase.FreeReleaseProofNativeFile,
+                    purchaseFolder,
+                    purchase,
+                    "Proof of free release",
+                    copiedFiles);
 
                 var purchasePath = Path.Combine(purchaseFolder, CreatePurchaseDataFileName(purchase));
                 var temporaryPath = $"{purchasePath}.tmp";
@@ -300,6 +332,8 @@ internal static class PurchaseStore
                 purchase.PaymentProofNativeSourcePath = null;
                 purchase.PurchaseProofPdfSourcePath = null;
                 purchase.PurchaseProofNativeSourcePath = null;
+                purchase.FreeReleaseProofPdfSourcePath = null;
+                purchase.FreeReleaseProofNativeSourcePath = null;
                 purchase.StorageFolderName = folderName;
                 existingNames.Add(folderName);
             }
@@ -311,6 +345,8 @@ internal static class PurchaseStore
                 purchase.PaymentProofNativeFile = oldProofFiles[3];
                 purchase.PurchaseProofPdfFile = oldProofFiles[4];
                 purchase.PurchaseProofNativeFile = oldProofFiles[5];
+                purchase.FreeReleaseProofPdfFile = oldProofFiles[6];
+                purchase.FreeReleaseProofNativeFile = oldProofFiles[7];
                 foreach (var copiedFile in copiedFiles)
                 {
                     if (File.Exists(copiedFile))
@@ -366,6 +402,8 @@ internal static class PurchaseStore
             storedPurchase.PaymentProofNativeFile,
             storedPurchase.PurchaseProofPdfFile,
             storedPurchase.PurchaseProofNativeFile,
+            storedPurchase.FreeReleaseProofPdfFile,
+            storedPurchase.FreeReleaseProofNativeFile,
             storedPurchase.PossessionProofFile,
             storedPurchase.PaymentProofFile,
             storedPurchase.PurchaseProofFile
@@ -546,8 +584,14 @@ internal static class PurchaseStore
                 || (!purchase.Price.HasValue && !purchase.IsPriceUnknown)
                 || (purchase.Price.HasValue && purchase.IsPriceUnknown)
                 || purchase.Price < 0;
+        var freeReleaseDetailsInvalid = purchase.IsFreeDigitalRelease
+            && (purchase.Kind != PurchaseKind.Digital
+                || purchase.PaymentMethod.HasValue
+                || purchase.Price != 0
+                || purchase.IsPriceUnknown);
         if (purchase.Id == Guid.Empty
             || purchaseDetailsInvalid
+            || freeReleaseDetailsInvalid
             || purchase.Remark is null
             || purchase.Songs is null
             || purchase.Songs.Any(song => song is null || string.IsNullOrWhiteSpace(song.FilePath)))

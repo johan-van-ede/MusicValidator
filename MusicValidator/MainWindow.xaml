@@ -304,7 +304,7 @@
               <DataGridTextColumn Header="STORE" Binding="{Binding StoreDisplay}" Width="*" />
               <DataGridTextColumn Header="REMARK" Binding="{Binding Remark}" Width="*" />
               <DataGridTextColumn Header="MUSIC MEDIUM" Binding="{Binding MusicMediumDisplay}" Width="140" />
-              <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentMethod}" Width="88" />
+              <DataGridTextColumn Header="PAYMENT" Binding="{Binding PaymentMethodDisplay}" Width="110" />
               <DataGridTextColumn Header="PRICE (€)" Binding="{Binding PriceDisplay}"
                                   Width="105" />
               <DataGridTextColumn Header="SONGS" Binding="{Binding SongCount}" Width="70" />

@@ -56,7 +56,9 @@ internal static class PurchaseReportGenerator
         writer.WriteField("Remark", string.IsNullOrWhiteSpace(purchase.Remark) ? "None" : purchase.Remark);
         writer.WriteField("Price", purchase.Price?.ToString("C", CultureInfo.CurrentCulture) ?? "Unknown");
         writer.WriteField("Music medium", purchase.MusicMediumDisplay);
-        writer.WriteField("Payment method", purchase.PaymentMethod?.ToString() ?? "Not specified");
+        writer.WriteField(
+            "Payment method",
+            purchase.IsFreeDigitalRelease ? "Not applicable" : purchase.PaymentMethod?.ToString() ?? "Not specified");
         writer.WriteField("Validation", purchase.ValidationStatus);
 
         writer.WriteHeading("Evidence", 13);
@@ -185,6 +187,16 @@ internal static class PurchaseReportGenerator
         if (!string.IsNullOrWhiteSpace(purchase.PurchaseProofNativeFile))
         {
             yield return new EvidenceFile("Proof of purchase (native file)", purchase.PurchaseProofNativeFile, false);
+        }
+
+        if (!string.IsNullOrWhiteSpace(purchase.FreeReleaseProofPdfFile))
+        {
+            yield return new EvidenceFile("Proof of free release", purchase.FreeReleaseProofPdfFile, true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(purchase.FreeReleaseProofNativeFile))
+        {
+            yield return new EvidenceFile("Proof of free release (native file)", purchase.FreeReleaseProofNativeFile, false);
         }
     }
 

@@ -217,6 +217,49 @@
                   Checked="UnknownPhysicalAlbumCheckBox_Changed"
                   Unchecked="UnknownPhysicalAlbumCheckBox_Changed" />
 
+        <CheckBox x:Name="FreeDigitalReleaseCheckBox"
+                  Content="Free digital release"
+                  Margin="0,12,0,0"
+                  Foreground="{StaticResource MutedBrush}"
+                  Visibility="Collapsed"
+                  Checked="FreeDigitalReleaseCheckBox_Changed"
+                  Unchecked="FreeDigitalReleaseCheckBox_Changed" />
+
+        <StackPanel x:Name="FreeReleaseProofPanel" Visibility="Collapsed" Margin="0,18,0,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+            <TextBlock Text="PROOF OF FREE RELEASE"
+                       Foreground="{StaticResource MutedBrush}"
+                       FontSize="10" />
+            <TextBlock Text=" *"
+                       Foreground="#E06B75"
+                       FontSize="11"
+                       ToolTip="Attach at least one PDF or native file explaining how and when it was released for free." />
+          </StackPanel>
+          <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button x:Name="FreeReleaseProofPdfButton"
+                      Content="PDF"
+                      ToolTip="Select a PDF"
+                      Tag="FreeReleasePdf"
+                      Padding="8,5"
+                      Margin="6,0,0,0"
+                      Click="SelectProof_Click" />
+              <Button x:Name="FreeReleaseProofFileButton"
+                      Content="File"
+                      ToolTip="Select a non-PDF native file"
+                      Tag="FreeReleaseFile"
+                      Padding="8,5"
+                      Margin="6,0,0,0"
+                      Click="SelectProof_Click" />
+            </StackPanel>
+            <TextBlock x:Name="FreeReleaseProofFileText"
+                       Text="No file selected"
+                       Foreground="{StaticResource MutedBrush}"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap" />
+          </DockPanel>
+        </StackPanel>
+
         <StackPanel x:Name="PossessionProofPanel" Visibility="Collapsed" Margin="0,18,0,0">
           <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
             <TextBlock Text="PROOF OF OWNERSHIP (PHYSICAL PURCHASE)"

@@ -72,9 +72,18 @@ internal static class PurchaseChecker
             issues.Add("Music medium is missing.");
         }
 
-        if (!purchase.PaymentMethod.HasValue)
+        if (!purchase.IsFreeDigitalRelease && !purchase.PaymentMethod.HasValue)
         {
             issues.Add("Payment method is missing.");
+        }
+
+        if (purchase.IsFreeDigitalRelease
+            && (purchase.Kind != PurchaseKind.Digital
+                || purchase.PaymentMethod.HasValue
+                || purchase.Price != 0
+                || purchase.IsPriceUnknown))
+        {
+            issues.Add("A free release must be digital, have a price of zero, and have no payment method.");
         }
 
         if (purchase.IsUnknownPhysicalAlbum && purchase.Kind != PurchaseKind.Physical)
@@ -88,7 +97,7 @@ internal static class PurchaseChecker
         }
 
         var allEvidenceFilesValid = true;
-        var purchaseProofRequired = !purchase.IsUnknownPhysicalAlbum;
+        var purchaseProofRequired = !purchase.IsUnknownPhysicalAlbum && !purchase.IsFreeDigitalRelease;
         var purchaseProof = CheckEvidenceGroup(
             purchaseStorageFolder,
             purchase,
@@ -97,6 +106,16 @@ internal static class PurchaseChecker
             purchase.PurchaseProofNativeFile,
             purchase.PurchaseProofFile,
             isRequired: purchaseProofRequired,
+            ref allEvidenceFilesValid,
+            issues);
+        var freeReleaseProof = CheckEvidenceGroup(
+            purchaseStorageFolder,
+            purchase,
+            "Proof of free release",
+            purchase.FreeReleaseProofPdfFile,
+            purchase.FreeReleaseProofNativeFile,
+            legacyFile: null,
+            isRequired: purchase.IsFreeDigitalRelease,
             ref allEvidenceFilesValid,
             issues);
         var possessionProof = CheckEvidenceGroup(
@@ -116,22 +135,32 @@ internal static class PurchaseChecker
             purchase.PaymentProofPdfFile,
             purchase.PaymentProofNativeFile,
             purchase.PaymentProofFile,
-            isRequired: purchase.PaymentMethod == PaymentMethod.Digital,
+            isRequired: !purchase.IsFreeDigitalRelease
+                && purchase.PaymentMethod == PaymentMethod.Digital,
             ref allEvidenceFilesValid,
             issues);
 
         var hasCompleteEvidence =
             purchaseProof.IsComplete
+            && freeReleaseProof.IsComplete
             && possessionProof.IsComplete
             && paymentProof.IsComplete
             && allEvidenceFilesValid;
 
         if (!purchase.IsUnknownPhysicalAlbum
+            && !purchase.IsFreeDigitalRelease
             && !purchase.ManuallyValidated
             && !purchaseProof.IsComplete
             && !purchaseProof.HasEvidence)
         {
             issues.Add("Proof of purchase is required.");
+        }
+
+        if (purchase.IsFreeDigitalRelease
+            && !freeReleaseProof.IsComplete
+            && !freeReleaseProof.HasEvidence)
+        {
+            issues.Add("Proof of free release is required.");
         }
 
         if ((!purchase.ManuallyValidated || purchase.IsUnknownPhysicalAlbum)

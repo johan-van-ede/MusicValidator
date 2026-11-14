@@ -17,6 +17,8 @@ public partial class AddPurchaseWindow : Window
     private string? _paymentProofNativeSourcePath;
     private string? _purchaseProofPdfSourcePath;
     private string? _purchaseProofNativeSourcePath;
+    private string? _freeReleaseProofPdfSourcePath;
+    private string? _freeReleaseProofNativeSourcePath;
 
     internal PurchaseRecord? Purchase { get; private set; }
 
@@ -31,7 +33,7 @@ public partial class AddPurchaseWindow : Window
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         PurchaseDatePicker.SelectedDate = DateTime.Today;
-        PriceTextBox.Text = 0m.ToString("0.00", CultureInfo.CurrentCulture);
+        PriceTextBox.Text = string.Empty;
         if (_existingPurchase is not null)
         {
             LegacyImportButton.Visibility = Visibility.Collapsed;
@@ -48,6 +50,13 @@ public partial class AddPurchaseWindow : Window
 
     private void PurchaseKindComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (((PurchaseKindComboBox.SelectedItem as ComboBoxItem)?.Tag as string)
+                != nameof(PurchaseKind.Digital)
+            && FreeDigitalReleaseCheckBox.IsChecked == true)
+        {
+            FreeDigitalReleaseCheckBox.IsChecked = false;
+        }
+
         UpdateProofVisibility();
     }
 
@@ -70,6 +79,33 @@ public partial class AddPurchaseWindow : Window
         var isPriceUnknown = PriceUnknownCheckBox.IsChecked == true;
         PriceTextBox.Text = isPriceUnknown ? "Unknown" : string.Empty;
         PriceTextBox.IsEnabled = !isPriceUnknown && UnknownPhysicalAlbumCheckBox.IsChecked != true;
+    }
+
+    private void FreeDigitalReleaseCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        var isFreeDigitalRelease = FreeDigitalReleaseCheckBox.IsChecked == true;
+        if (isFreeDigitalRelease
+            && ((PurchaseKindComboBox.SelectedItem as ComboBoxItem)?.Tag as string)
+                != nameof(PurchaseKind.Digital))
+        {
+            FreeDigitalReleaseCheckBox.IsChecked = false;
+            return;
+        }
+
+        if (isFreeDigitalRelease)
+        {
+            PriceUnknownCheckBox.IsChecked = false;
+            PriceTextBox.Text = 0m.ToString("0.00", CultureInfo.CurrentCulture);
+            PaymentMethodComboBox.SelectedIndex = -1;
+        }
+        else if (_existingPurchase is null)
+        {
+            PriceTextBox.Text = string.Empty;
+            SelectComboItem(PaymentMethodComboBox, nameof(PaymentMethod.Digital));
+        }
+
+        UpdateProofVisibility();
+        UpdateFreeReleaseProofFileText();
     }
 
     private void PaymentMethodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -373,6 +409,8 @@ public partial class AddPurchaseWindow : Window
             "PaymentFile" => ("PaymentNative", false),
             "PurchasePdf" => ("PurchasePdf", true),
             "PurchaseFile" => ("PurchaseNative", false),
+            "FreeReleasePdf" => ("FreeReleasePdf", true),
+            "FreeReleaseFile" => ("FreeReleaseNative", false),
             _ => (string.Empty, false)
         };
         if (proofSlot.Length == 0)
@@ -432,12 +470,21 @@ public partial class AddPurchaseWindow : Window
                 _purchaseProofNativeSourcePath = dialog.FileName;
                 UpdatePurchaseProofFileText();
                 break;
+            case "FreeReleasePdf":
+                _freeReleaseProofPdfSourcePath = dialog.FileName;
+                UpdateFreeReleaseProofFileText();
+                break;
+            case "FreeReleaseNative":
+                _freeReleaseProofNativeSourcePath = dialog.FileName;
+                UpdateFreeReleaseProofFileText();
+                break;
         }
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
+        var isFreeDigitalRelease = FreeDigitalReleaseCheckBox.IsChecked == true;
         var store = StoreComboBox.Text.Trim();
         if (!isUnknownPhysicalAlbum && string.IsNullOrWhiteSpace(store))
         {
@@ -465,9 +512,14 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
-        var isPriceUnknown = isUnknownPhysicalAlbum || PriceUnknownCheckBox.IsChecked == true;
+        var isPriceUnknown = isUnknownPhysicalAlbum
+            || (!isFreeDigitalRelease && PriceUnknownCheckBox.IsChecked == true);
         decimal? price = null;
-        if (!isPriceUnknown)
+        if (isFreeDigitalRelease)
+        {
+            price = 0m;
+        }
+        else if (!isPriceUnknown)
         {
             if (!decimal.TryParse(
                     PriceTextBox.Text,
@@ -500,8 +552,15 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
+        if (isFreeDigitalRelease && purchaseKind != PurchaseKind.Digital)
+        {
+            ShowInputError("A free release must use the digital music medium.");
+            PurchaseKindComboBox.Focus();
+            return;
+        }
+
         var paymentMethod = PaymentMethod.Cash;
-        if (!isUnknownPhysicalAlbum
+        if (!isUnknownPhysicalAlbum && !isFreeDigitalRelease
             && !Enum.TryParse<PaymentMethod>(
                 (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string,
                 out paymentMethod))
@@ -519,9 +578,10 @@ public partial class AddPurchaseWindow : Window
             Remark = remark,
             Price = price,
             Kind = purchaseKind,
-            PaymentMethod = paymentMethod,
+            PaymentMethod = isFreeDigitalRelease ? null : paymentMethod,
             IsUnknownPhysicalAlbum = isUnknownPhysicalAlbum,
             IsPriceUnknown = isPriceUnknown,
+            IsFreeDigitalRelease = isFreeDigitalRelease,
             ManuallyValidated = !isUnknownPhysicalAlbum && ManualValidationCheckBox.IsChecked == true,
             PossessionProofPdfFile = existingPurchase?.PossessionProofPdfFile,
             PossessionProofNativeFile = existingPurchase?.PossessionProofNativeFile,
@@ -532,12 +592,16 @@ public partial class AddPurchaseWindow : Window
             PossessionProofFile = existingPurchase?.PossessionProofFile,
             PaymentProofFile = existingPurchase?.PaymentProofFile,
             PurchaseProofFile = existingPurchase?.PurchaseProofFile,
+            FreeReleaseProofPdfFile = existingPurchase?.FreeReleaseProofPdfFile,
+            FreeReleaseProofNativeFile = existingPurchase?.FreeReleaseProofNativeFile,
             PossessionProofPdfSourcePath = _possessionProofPdfSourcePath,
             PossessionProofNativeSourcePath = _possessionProofNativeSourcePath,
             PaymentProofPdfSourcePath = _paymentProofPdfSourcePath,
             PaymentProofNativeSourcePath = _paymentProofNativeSourcePath,
             PurchaseProofPdfSourcePath = _purchaseProofPdfSourcePath,
             PurchaseProofNativeSourcePath = _purchaseProofNativeSourcePath,
+            FreeReleaseProofPdfSourcePath = _freeReleaseProofPdfSourcePath,
+            FreeReleaseProofNativeSourcePath = _freeReleaseProofNativeSourcePath,
             Songs = existingPurchase?.Songs.ToList() ?? [],
             StorageFolderName = existingPurchase?.StorageFolderName
         };
@@ -558,8 +622,12 @@ public partial class AddPurchaseWindow : Window
         SelectComboItem(PaymentMethodComboBox, purchase.PaymentMethod?.ToString());
         ManualValidationCheckBox.IsChecked = purchase.ManuallyValidated;
         UnknownPhysicalAlbumCheckBox.IsChecked = purchase.IsUnknownPhysicalAlbum;
+        FreeDigitalReleaseCheckBox.IsChecked = purchase.IsFreeDigitalRelease;
         PriceUnknownCheckBox.IsChecked = purchase.IsPriceUnknown || !purchase.Price.HasValue;
-        PriceTextBox.IsEnabled = !purchase.IsUnknownPhysicalAlbum && PriceUnknownCheckBox.IsChecked != true;
+        PriceTextBox.Text = purchase.Price?.ToString("0.00", CultureInfo.CurrentCulture) ?? "Unknown";
+        PriceTextBox.IsEnabled = !purchase.IsUnknownPhysicalAlbum
+            && !purchase.IsFreeDigitalRelease
+            && PriceUnknownCheckBox.IsChecked != true;
 
         PurchaseDateReadOnlyText.Text = purchase.PurchaseDate?.ToString("d", CultureInfo.CurrentCulture) ?? "Unknown";
         PurchaseDatePicker.Visibility = Visibility.Collapsed;
@@ -593,10 +661,17 @@ public partial class AddPurchaseWindow : Window
             PaymentMethodComboBox.Visibility = Visibility.Collapsed;
             PaymentMethodReadOnly.Visibility = Visibility.Visible;
         }
+        else if (purchase.IsFreeDigitalRelease)
+        {
+            PaymentMethodReadOnlyText.Text = "Not applicable";
+            PaymentMethodComboBox.Visibility = Visibility.Collapsed;
+            PaymentMethodReadOnly.Visibility = Visibility.Visible;
+        }
 
         UpdatePossessionProofFileText();
         UpdatePaymentProofFileText();
         UpdatePurchaseProofFileText();
+        UpdateFreeReleaseProofFileText();
     }
 
     private static void SelectComboItem(ComboBox comboBox, string? value)
@@ -639,6 +714,15 @@ public partial class AddPurchaseWindow : Window
         UpdateProofButton(PurchaseProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
     }
 
+    private void UpdateFreeReleaseProofFileText()
+    {
+        var pdfPath = _freeReleaseProofPdfSourcePath ?? _existingPurchase?.FreeReleaseProofPdfFile;
+        var nativePath = _freeReleaseProofNativeSourcePath ?? _existingPurchase?.FreeReleaseProofNativeFile;
+        FreeReleaseProofFileText.Text = FormatProofFileNames(pdfPath, nativePath);
+        UpdateProofButton(FreeReleaseProofPdfButton, "PDF", !string.IsNullOrWhiteSpace(pdfPath));
+        UpdateProofButton(FreeReleaseProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
+    }
+
     private static void UpdateProofButton(Button button, string label, bool isSelected)
     {
         button.Content = isSelected ? $"{label} ✓" : label;
@@ -665,7 +749,9 @@ public partial class AddPurchaseWindow : Window
         var purchaseKind = (PurchaseKindComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
         var paymentMethod = (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
         var isPhysical = purchaseKind == nameof(PurchaseKind.Physical);
+        var isDigital = purchaseKind == nameof(PurchaseKind.Digital);
         var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
+        var isFreeDigitalRelease = FreeDigitalReleaseCheckBox.IsChecked == true;
         if (!isPhysical && _existingPurchase is null && isUnknownPhysicalAlbum)
         {
             UnknownPhysicalAlbumCheckBox.IsChecked = false;
@@ -675,17 +761,47 @@ public partial class AddPurchaseWindow : Window
         PossessionProofPanel.Visibility = purchaseKind == nameof(PurchaseKind.Physical)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        FreeDigitalReleaseCheckBox.Visibility = isDigital
+            && (_existingPurchase is null || _existingPurchase.IsFreeDigitalRelease)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        FreeDigitalReleaseCheckBox.IsEnabled = _existingPurchase is null;
+        FreeReleaseProofPanel.Visibility = isFreeDigitalRelease
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         UnknownPhysicalAlbumCheckBox.Visibility = isPhysical
             && (_existingPurchase is null || _existingPurchase.IsUnknownPhysicalAlbum)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         UnknownPhysicalAlbumCheckBox.IsEnabled = _existingPurchase is null;
-        PurchaseProofRequiredIndicator.Visibility = isUnknownPhysicalAlbum
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        PaymentProofPanel.Visibility = paymentMethod == nameof(PaymentMethod.Digital)
+        PaymentProofPanel.Visibility = !isFreeDigitalRelease && paymentMethod == nameof(PaymentMethod.Digital)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        PurchaseProofPanel.Visibility = isFreeDigitalRelease ? Visibility.Collapsed : Visibility.Visible;
+        PurchaseProofRequiredIndicator.Visibility = isUnknownPhysicalAlbum || isFreeDigitalRelease
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        PaymentMethodComboBox.Visibility = isFreeDigitalRelease
+            ? Visibility.Collapsed
+            : _existingPurchase?.PaymentMethod.HasValue == true
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        PaymentMethodReadOnly.Visibility = isFreeDigitalRelease
+            ? Visibility.Visible
+            : _existingPurchase?.PaymentMethod.HasValue == true
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        if (isFreeDigitalRelease)
+        {
+            PaymentMethodReadOnlyText.Text = "Not applicable";
+        }
+        PaymentMethodComboBox.IsEnabled = !isFreeDigitalRelease
+            && _existingPurchase?.PaymentMethod.HasValue != true
+            && !isUnknownPhysicalAlbum;
+        PriceUnknownCheckBox.IsEnabled = !isFreeDigitalRelease && !isUnknownPhysicalAlbum;
+        PriceTextBox.IsEnabled = !isFreeDigitalRelease
+            && !isUnknownPhysicalAlbum
+            && PriceUnknownCheckBox.IsChecked != true;
     }
 
     private void UpdateUnknownPhysicalAlbumFields()
@@ -694,6 +810,7 @@ public partial class AddPurchaseWindow : Window
         PurchaseDatePicker.IsEnabled = !isUnknownPhysicalAlbum;
         StoreComboBox.IsEnabled = !isUnknownPhysicalAlbum;
         PriceTextBox.IsEnabled = !isUnknownPhysicalAlbum;
+        FreeDigitalReleaseCheckBox.IsEnabled = _existingPurchase is null;
         PaymentMethodComboBox.IsEnabled = !isUnknownPhysicalAlbum;
         ManualValidationCheckBox.IsEnabled = !isUnknownPhysicalAlbum;
         if (isUnknownPhysicalAlbum)
@@ -713,7 +830,9 @@ public partial class AddPurchaseWindow : Window
             ? Visibility.Collapsed
             : Visibility.Visible;
         PriceUnknownCheckBox.IsEnabled = !isUnknownPhysicalAlbum;
-        PriceTextBox.IsEnabled = !isUnknownPhysicalAlbum && PriceUnknownCheckBox.IsChecked != true;
+        PriceTextBox.IsEnabled = !isUnknownPhysicalAlbum
+            && FreeDigitalReleaseCheckBox.IsChecked != true
+            && PriceUnknownCheckBox.IsChecked != true;
     }
 
     private void ShowInputError(string message)

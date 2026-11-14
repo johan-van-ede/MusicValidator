@@ -156,6 +156,10 @@ public partial class PurchaseDetailsWindow : Window
             "Open proof of purchase",
             _purchase.PurchaseProofPdfFile ?? _purchase.PurchaseProofFile,
             _purchase.PurchaseProofNativeFile);
+        AddEvidenceGroup(
+            "Open proof of free release",
+            _purchase.FreeReleaseProofPdfFile,
+            _purchase.FreeReleaseProofNativeFile);
         EvidencePanel.Visibility = EvidencePanel.Children.Count == 0
             ? Visibility.Collapsed
             : Visibility.Visible;
