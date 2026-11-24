@@ -169,12 +169,31 @@
               <DataGridTemplateColumn Header="STATUS" Width="130">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
-                    <Button Content="{Binding Status}"
+                    <Button x:Name="TrackStatusButton"
+                            Content="{Binding Status}"
                             Tag="{Binding}"
                             Style="{StaticResource TrackStatusButton}"
                             ToolTip="Click to manage this song's purchase assignment"
                             AutomationProperties.Name="Assign song to a purchase"
                             Click="TrackStatus_Click" />
+                    <DataTemplate.Triggers>
+                      <DataTrigger Binding="{Binding IsValidated}" Value="True">
+                        <Setter TargetName="TrackStatusButton"
+                                Property="ToolTip"
+                                Value="View the purchase this song belongs to" />
+                        <Setter TargetName="TrackStatusButton"
+                                Property="AutomationProperties.Name"
+                                Value="View song purchase details" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding Status}" Value="Found">
+                        <Setter TargetName="TrackStatusButton"
+                                Property="ToolTip"
+                                Value="Found in a purchase by title and artist. Click to assign this song there." />
+                        <Setter TargetName="TrackStatusButton"
+                                Property="AutomationProperties.Name"
+                                Value="Assign song to the purchase where it was found" />
+                      </DataTrigger>
+                    </DataTemplate.Triggers>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
@@ -300,6 +319,7 @@
             <DataGrid.Columns>
               <DataGridTextColumn Header="DATE"
                                   Binding="{Binding PurchaseDateDisplay}"
+                                  SortMemberPath="PurchaseDate"
                                   Width="100" />
               <DataGridTextColumn Header="STORE" Binding="{Binding StoreDisplay}" Width="*" />
               <DataGridTextColumn Header="REMARK" Binding="{Binding Remark}" Width="*" />

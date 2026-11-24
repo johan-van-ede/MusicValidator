@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
-      "MusicValidator/0.5.0-test.1": {
+      "MusicValidator/0.7.0-test.1": {
         "dependencies": {
           "PDFsharp-WPF": "6.2.4",
           "TagLibSharp": "2.3.0"
@@ -88,7 +88,7 @@
     }
   },
   "libraries": {
-    "MusicValidator/0.5.0-test.1": {
+    "MusicValidator/0.7.0-test.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

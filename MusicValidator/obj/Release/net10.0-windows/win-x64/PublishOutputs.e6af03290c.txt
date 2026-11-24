@@ -233,7 +233,7 @@ C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-window
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\hostfxr.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\hostpolicy.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\mscordaccore.dll
-C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\mscordaccore_amd64_amd64_10.0.1426.52326.dll
+C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\mscordaccore_amd64_amd64_10.0.1526.53008.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\mscordbi.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\mscorrc.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\publish\msquic.dll

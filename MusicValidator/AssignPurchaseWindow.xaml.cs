@@ -7,13 +7,20 @@ public partial class AssignPurchaseWindow : Window
     internal PurchaseRecord? Purchase { get; private set; }
     internal bool IsNewPurchase { get; private set; }
 
-    internal AssignPurchaseWindow(IEnumerable<PurchaseRecord> purchases, IReadOnlyList<PurchaseSong> songs)
+    internal AssignPurchaseWindow(
+        IEnumerable<PurchaseRecord> purchases,
+        IReadOnlyList<PurchaseSong> songs,
+        PurchaseRecord? preferredPurchase = null)
     {
         InitializeComponent();
-        PurchaseComboBox.ItemsSource = purchases.ToList();
-        if (PurchaseComboBox.Items.Count > 0)
+        var purchaseList = purchases.ToList();
+        PurchaseComboBox.ItemsSource = purchaseList;
+        if (purchaseList.Count > 0)
         {
-            PurchaseComboBox.SelectedIndex = 0;
+            var preferredIndex = preferredPurchase is null
+                ? -1
+                : purchaseList.FindIndex(purchase => purchase.Id == preferredPurchase.Id);
+            PurchaseComboBox.SelectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
         }
 
         SongsListBox.ItemsSource = songs;

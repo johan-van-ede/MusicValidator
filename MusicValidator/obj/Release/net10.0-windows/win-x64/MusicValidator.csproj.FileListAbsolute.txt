@@ -245,7 +245,6 @@ C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-window
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\hostfxr.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\hostpolicy.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\mscordaccore.dll
-C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\mscordaccore_amd64_amd64_10.0.1426.52326.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\mscordbi.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\mscorrc.dll
 C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\msquic.dll
@@ -436,3 +435,4 @@ C:\Development\Personal\MusicValidator\MusicValidator\obj\Release\net10.0-window
 C:\Development\Personal\MusicValidator\MusicValidator\obj\Release\net10.0-windows\win-x64\MusicValidator.pdb
 C:\Development\Personal\MusicValidator\MusicValidator\obj\Release\net10.0-windows\win-x64\MusicValidator.genruntimeconfig.cache
 C:\Development\Personal\MusicValidator\MusicValidator\obj\Release\net10.0-windows\win-x64\ref\MusicValidator.dll
+C:\Development\Personal\MusicValidator\MusicValidator\bin\Release\net10.0-windows\win-x64\mscordaccore_amd64_amd64_10.0.1526.53008.dll

@@ -36,6 +36,11 @@ internal static class PurchaseChecker
         }
     }
 
+    public static void CheckOne(string purchaseStorageFolder, PurchaseRecord purchase)
+    {
+        purchase.SetCheckResult(Check(purchaseStorageFolder, purchase));
+    }
+
     private static PurchaseCheckResult Check(string purchaseStorageFolder, PurchaseRecord purchase)
     {
         var issues = new List<string>();

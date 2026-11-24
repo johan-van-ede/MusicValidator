@@ -18,10 +18,10 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MusicTrack> _musicTracks = [];
     private readonly ObservableCollection<PurchaseRecord> _purchases = [];
     private readonly ICollectionView _musicView;
-    private readonly HashSet<string> _assignedSongPaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _validatedSongPaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _assignedLibraryRelativePaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _validatedLibraryRelativePaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _assignedSongFileNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _validatedSongFileNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<SongMetadataKey, PurchaseRecord> _purchasesBySongMetadata =
+        new(SongMetadataKeyComparer.Instance);
     private AppSettings _settings = new();
     private bool _hideValidatedTracks;
     private ListSortDirection _folderPathSortDirection = ListSortDirection.Ascending;
@@ -213,11 +213,16 @@ public partial class MainWindow : Window
     {
         if (sender is Button { Tag: PurchaseRecord purchase })
         {
-            new PurchaseDetailsWindow(
-                purchase,
-                SavePurchaseSongs,
-                _settings.PurchaseStorageFolder) { Owner = this }.ShowDialog();
+            ShowPurchaseDetails(purchase);
         }
+    }
+
+    private void ShowPurchaseDetails(PurchaseRecord purchase)
+    {
+        new PurchaseDetailsWindow(
+            purchase,
+            SavePurchaseSongs,
+            _settings.PurchaseStorageFolder) { Owner = this }.ShowDialog();
     }
 
     private void PurchaseValidationStatus_Click(object sender, RoutedEventArgs e)
@@ -283,13 +288,63 @@ public partial class MainWindow : Window
 
     private void TrackStatus_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: MusicTrack track })
+        if (sender is not Button { Tag: MusicTrack track })
         {
-            AssignTracksToPurchase([track]);
+            return;
         }
+
+        if (!track.IsValidated)
+        {
+            var preferredPurchase = string.Equals(track.Status, "Found", StringComparison.Ordinal)
+                ? FindPurchaseByMetadata(track)
+                : null;
+            AssignTracksToPurchase([track], preferredPurchase);
+            return;
+        }
+
+        var purchase = FindValidatedPurchase(track);
+        if (purchase is null)
+        {
+            MessageBox.Show(
+                this,
+                "The validated purchase associated with this song could not be found.",
+                "Purchase not found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        ShowPurchaseDetails(purchase);
     }
 
-    private void AssignTracksToPurchase(IReadOnlyList<MusicTrack> selectedTracks)
+    private PurchaseRecord? FindValidatedPurchase(MusicTrack track)
+    {
+        var fileName = Path.GetFileName(track.FilePath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        return _purchases.FirstOrDefault(purchase =>
+            purchase.IsValidated
+            && purchase.Songs.Any(song =>
+                string.Equals(
+                    Path.GetFileName(song.FilePath),
+                    fileName,
+                    StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private PurchaseRecord? FindPurchaseByMetadata(MusicTrack track)
+    {
+        return TryCreateSongMetadataKey(track.Title, track.Artist, out var metadataKey)
+            && _purchasesBySongMetadata.TryGetValue(metadataKey, out var purchase)
+                ? purchase
+                : null;
+    }
+
+    private void AssignTracksToPurchase(
+        IReadOnlyList<MusicTrack> selectedTracks,
+        PurchaseRecord? preferredPurchase = null)
     {
         var songs = selectedTracks
             .Select(PurchaseSong.FromTrack)
@@ -299,7 +354,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new AssignPurchaseWindow(_purchases, songs) { Owner = this };
+        var dialog = new AssignPurchaseWindow(_purchases, songs, preferredPurchase) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.Purchase is not PurchaseRecord purchase)
         {
             return;
@@ -423,13 +478,17 @@ public partial class MainWindow : Window
                 }
 
                 var displayedTrack = track;
-                if (_validatedSongPaths.Contains(track.FilePath)
-                    || _validatedLibraryRelativePaths.Contains(track.LibraryRelativePath))
+                var fileName = Path.GetFileName(track.FilePath);
+                if (_validatedSongFileNames.Contains(fileName))
                 {
                     displayedTrack = track with { Status = "Validated" };
                 }
-                else if (_assignedSongPaths.Contains(track.FilePath)
-                    || _assignedLibraryRelativePaths.Contains(track.LibraryRelativePath))
+                else if (TryCreateSongMetadataKey(track.Title, track.Artist, out var metadataKey)
+                    && _purchasesBySongMetadata.ContainsKey(metadataKey))
+                {
+                    displayedTrack = track with { Status = "Found" };
+                }
+                else if (_assignedSongFileNames.Contains(fileName))
                 {
                     displayedTrack = track with { Status = "Assigned" };
                 }
@@ -497,7 +556,6 @@ public partial class MainWindow : Window
                 var track = MusicTrackReader.Read(filePath) with
                 {
                     RelativePath = relativePath,
-                    LibraryRelativePath = CreateLibraryRelativePath(folderPath, relativePath),
                     FolderOrderKey = CreateFolderOrderKey(filePath)
                 };
                 await writer.WriteAsync(track, cancellationToken);
@@ -548,49 +606,6 @@ public partial class MainWindow : Window
             return $"{significantDigits.Length:D10}:{significantDigits}:{match.Value.Length:D10}";
         });
     }
-
-    private static string CreateLibraryRelativePath(string libraryFolderPath, string relativePath)
-    {
-        var libraryFolderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(libraryFolderPath));
-        return NormalizeLibraryPath(string.IsNullOrWhiteSpace(libraryFolderName)
-            ? relativePath
-            : Path.Combine(libraryFolderName, relativePath));
-    }
-
-    private string? CreateStoredLibraryRelativePath(string filePath)
-    {
-        var pathSegments = filePath
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/')
-            .Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var libraryFolderNames = _settings.MusicFolderPaths
-            .Select(folderPath => Path.GetFileName(Path.TrimEndingDirectorySeparator(folderPath)))
-            .Where(folderName => !string.IsNullOrWhiteSpace(folderName))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var libraryFolderIndex = -1;
-        foreach (var libraryFolderName in libraryFolderNames)
-        {
-            for (var index = pathSegments.Length - 2; index > libraryFolderIndex; index--)
-            {
-                if (string.Equals(pathSegments[index], libraryFolderName, StringComparison.OrdinalIgnoreCase))
-                {
-                    libraryFolderIndex = index;
-                    break;
-                }
-            }
-        }
-
-        return libraryFolderIndex < 0
-            ? null
-            : NormalizeLibraryPath(string.Join('/', pathSegments.Skip(libraryFolderIndex)));
-    }
-
-    private static string NormalizeLibraryPath(string path) =>
-        path.Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/')
-            .TrimStart('/')
-            .ToUpperInvariant();
 
     private void ShowScanError(string folderPath, Exception exception)
     {
@@ -703,28 +718,28 @@ public partial class MainWindow : Window
 
     private void RebuildAssignedSongPaths()
     {
-        _assignedSongPaths.Clear();
-        _validatedSongPaths.Clear();
-        _assignedLibraryRelativePaths.Clear();
-        _validatedLibraryRelativePaths.Clear();
+        _assignedSongFileNames.Clear();
+        _validatedSongFileNames.Clear();
+        _purchasesBySongMetadata.Clear();
         foreach (var purchase in _purchases)
         {
             foreach (var song in purchase.Songs)
             {
-                _assignedSongPaths.Add(song.FilePath);
-                var libraryRelativePath = CreateStoredLibraryRelativePath(song.FilePath);
-                if (libraryRelativePath is not null)
+                if (TryCreateSongMetadataKey(song.Title, song.Artist, out var metadataKey))
                 {
-                    _assignedLibraryRelativePaths.Add(libraryRelativePath);
+                    _purchasesBySongMetadata.TryAdd(metadataKey, purchase);
                 }
 
+                var fileName = Path.GetFileName(song.FilePath);
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    continue;
+                }
+
+                _assignedSongFileNames.Add(fileName);
                 if (purchase.IsValidated)
                 {
-                    _validatedSongPaths.Add(song.FilePath);
-                    if (libraryRelativePath is not null)
-                    {
-                        _validatedLibraryRelativePaths.Add(libraryRelativePath);
-                    }
+                    _validatedSongFileNames.Add(fileName);
                 }
             }
         }
@@ -732,11 +747,15 @@ public partial class MainWindow : Window
         for (var index = 0; index < _musicTracks.Count; index++)
         {
             var track = _musicTracks[index];
-            var isValidated = _validatedSongPaths.Contains(track.FilePath)
-                || _validatedLibraryRelativePaths.Contains(track.LibraryRelativePath);
-            var isAssigned = _assignedSongPaths.Contains(track.FilePath)
-                || _assignedLibraryRelativePaths.Contains(track.LibraryRelativePath);
-            var status = isValidated ? "Validated" : isAssigned ? "Assigned" : "Unvalidated";
+            var fileName = Path.GetFileName(track.FilePath);
+            var isValidated = _validatedSongFileNames.Contains(fileName);
+            var isAssigned = _assignedSongFileNames.Contains(fileName);
+            var isFound = !isValidated
+                && TryCreateSongMetadataKey(track.Title, track.Artist, out var metadataKey)
+                && _purchasesBySongMetadata.ContainsKey(metadataKey);
+            var status = isValidated
+                ? "Validated"
+                : isFound ? "Found" : isAssigned ? "Assigned" : "Unvalidated";
             if (!string.Equals(track.Status, status, StringComparison.Ordinal))
             {
                 _musicTracks[index] = track with { Status = status };
@@ -745,6 +764,40 @@ public partial class MainWindow : Window
 
         _validatedTrackCount = _musicTracks.Count(track => track.IsValidated);
         UpdateValidationMetric();
+    }
+
+    private static bool TryCreateSongMetadataKey(
+        string? title,
+        string? artist,
+        out SongMetadataKey metadataKey)
+    {
+        var normalizedTitle = title?.Trim();
+        var normalizedArtist = artist?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTitle)
+            || string.IsNullOrWhiteSpace(normalizedArtist))
+        {
+            metadataKey = default;
+            return false;
+        }
+
+        metadataKey = new SongMetadataKey(normalizedTitle, normalizedArtist);
+        return true;
+    }
+
+    private readonly record struct SongMetadataKey(string Title, string Artist);
+
+    private sealed class SongMetadataKeyComparer : IEqualityComparer<SongMetadataKey>
+    {
+        public static SongMetadataKeyComparer Instance { get; } = new();
+
+        public bool Equals(SongMetadataKey x, SongMetadataKey y) =>
+            string.Equals(x.Title, y.Title, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Artist, y.Artist, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode(SongMetadataKey key) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Title),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Artist));
     }
 
     private void ClearMusicFolder()
@@ -819,11 +872,26 @@ public partial class MainWindow : Window
 
     private bool TrySavePurchases(IEnumerable<PurchaseRecord> purchases, PurchaseRecord? reportPurchase = null)
     {
+        var shouldSaveReport = reportPurchase is not null;
         try
         {
             var purchaseList = purchases.ToList();
-            PurchaseStore.Save(_settings.PurchaseStorageFolder, purchaseList);
-            PurchaseChecker.CheckAll(_settings.PurchaseStorageFolder, purchaseList);
+            var changedPurchaseIds = PurchaseStore.Save(_settings.PurchaseStorageFolder, purchaseList);
+            if (reportPurchase is null)
+            {
+                PurchaseChecker.CheckAll(_settings.PurchaseStorageFolder, purchaseList);
+            }
+            else
+            {
+                var reportPath = PurchaseStore.GetPurchaseReportFilePath(
+                    _settings.PurchaseStorageFolder,
+                    reportPurchase);
+                shouldSaveReport = changedPurchaseIds.Contains(reportPurchase.Id) || !File.Exists(reportPath);
+                if (shouldSaveReport)
+                {
+                    PurchaseChecker.CheckOne(_settings.PurchaseStorageFolder, reportPurchase);
+                }
+            }
         }
         catch (InvalidDataException exception)
         {
@@ -846,7 +914,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (reportPurchase is null)
+        if (reportPurchase is null || !shouldSaveReport)
         {
             return true;
         }

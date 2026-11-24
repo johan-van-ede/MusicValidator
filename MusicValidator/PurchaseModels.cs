@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace MusicValidator;
@@ -181,6 +182,7 @@ internal static class PurchaseStore
 {
     private const string LegacyFileName = "purchases.json";
     private const string LegacyPurchaseFileName = "purchase.json";
+    private static readonly JsonSerializerOptions PurchaseJsonOptions = new() { WriteIndented = true };
 
     public static List<PurchaseRecord> Load(string folderPath)
     {
@@ -217,7 +219,7 @@ internal static class PurchaseStore
             .ToList();
     }
 
-    public static void Save(string folderPath, IEnumerable<PurchaseRecord> purchases)
+    public static HashSet<Guid> Save(string folderPath, IEnumerable<PurchaseRecord> purchases)
     {
         var root = GetRootPath(folderPath);
         Directory.CreateDirectory(root);
@@ -235,19 +237,30 @@ internal static class PurchaseStore
         }
 
         var existingPurchases = ReadPurchaseFolders(root)
-            .ToDictionary(purchase => purchase.Id, purchase => purchase.StorageFolderName!);
+            .ToDictionary(purchase => purchase.Id);
         var existingNames = Directory
             .EnumerateDirectories(root)
             .Select(Path.GetFileName)
             .OfType<string>()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var changedPurchaseIds = new HashSet<Guid>();
 
         foreach (var purchase in purchaseList)
         {
-            var folderName = existingPurchases.TryGetValue(purchase.Id, out var existingFolderName)
-                ? existingFolderName
+            var hasExistingPurchase = existingPurchases.TryGetValue(purchase.Id, out var existingPurchase);
+            var folderName = hasExistingPurchase
+                ? existingPurchase!.StorageFolderName!
                 : CreateFolderName(purchase, existingNames);
             var purchaseFolder = Path.Combine(root, folderName);
+            var hasSelectedEvidence = HasSelectedEvidence(purchase);
+            if (hasExistingPurchase
+                && !hasSelectedEvidence
+                && AreEquivalentPurchases(purchase, existingPurchase!))
+            {
+                purchase.StorageFolderName = folderName;
+                continue;
+            }
+
             Directory.CreateDirectory(purchaseFolder);
             var oldProofFiles = new[]
             {
@@ -324,7 +337,7 @@ internal static class PurchaseStore
                 var temporaryPath = $"{purchasePath}.tmp";
                 File.WriteAllText(
                     temporaryPath,
-                    JsonSerializer.Serialize(purchase, new JsonSerializerOptions { WriteIndented = true }));
+                    JsonSerializer.Serialize(purchase, PurchaseJsonOptions));
                 File.Move(temporaryPath, purchasePath, overwrite: true);
                 purchase.PossessionProofPdfSourcePath = null;
                 purchase.PossessionProofNativeSourcePath = null;
@@ -336,6 +349,7 @@ internal static class PurchaseStore
                 purchase.FreeReleaseProofNativeSourcePath = null;
                 purchase.StorageFolderName = folderName;
                 existingNames.Add(folderName);
+                changedPurchaseIds.Add(purchase.Id);
             }
             catch
             {
@@ -357,6 +371,37 @@ internal static class PurchaseStore
 
                 throw;
             }
+        }
+
+        return changedPurchaseIds;
+    }
+
+    private static bool HasSelectedEvidence(PurchaseRecord purchase) =>
+        !string.IsNullOrWhiteSpace(purchase.PossessionProofPdfSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.PossessionProofNativeSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.PaymentProofPdfSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.PaymentProofNativeSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.PurchaseProofPdfSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.PurchaseProofNativeSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.FreeReleaseProofPdfSourcePath)
+        || !string.IsNullOrWhiteSpace(purchase.FreeReleaseProofNativeSourcePath);
+
+    private static bool AreEquivalentPurchases(PurchaseRecord purchase, PurchaseRecord existingPurchase)
+    {
+        var purchaseJson = JsonSerializer.SerializeToNode(purchase, PurchaseJsonOptions);
+        var existingPurchaseJson = JsonSerializer.SerializeToNode(existingPurchase, PurchaseJsonOptions);
+        NormalizePurchaseDate(purchaseJson, purchase.PurchaseDate);
+        NormalizePurchaseDate(existingPurchaseJson, existingPurchase.PurchaseDate);
+        return JsonNode.DeepEquals(purchaseJson, existingPurchaseJson);
+    }
+
+    private static void NormalizePurchaseDate(JsonNode? purchaseJson, DateTime? purchaseDate)
+    {
+        if (purchaseJson is JsonObject purchaseObject)
+        {
+            purchaseObject[nameof(PurchaseRecord.PurchaseDate)] = purchaseDate.HasValue
+                ? JsonValue.Create(purchaseDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+                : null;
         }
     }
 

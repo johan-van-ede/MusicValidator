@@ -101,6 +101,11 @@
                 <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="Foreground" Value="#9BCB9A" />
               </DataTrigger>
+              <DataTrigger Binding="{Binding Status}" Value="Found">
+                <Setter Property="Background" Value="#243348" />
+                <Setter Property="BorderBrush" Value="#425B77" />
+                <Setter Property="Foreground" Value="#B8D2F0" />
+              </DataTrigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
