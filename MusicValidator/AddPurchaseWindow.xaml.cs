@@ -101,7 +101,7 @@ public partial class AddPurchaseWindow : Window
         else if (_existingPurchase is null)
         {
             PriceTextBox.Text = string.Empty;
-            SelectComboItem(PaymentMethodComboBox, nameof(PaymentMethod.Digital));
+            PaymentMethodComboBox.SelectedIndex = -1;
         }
 
         UpdateProofVisibility();
@@ -559,15 +559,23 @@ public partial class AddPurchaseWindow : Window
             return;
         }
 
-        var paymentMethod = PaymentMethod.Cash;
-        if (!isUnknownPhysicalAlbum && !isFreeDigitalRelease
-            && !Enum.TryParse<PaymentMethod>(
-                (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string,
-                out paymentMethod))
+        PaymentMethod? paymentMethod = null;
+        if (isUnknownPhysicalAlbum)
         {
-            ShowInputError("Select whether the payment was cash or digital.");
-            PaymentMethodComboBox.Focus();
-            return;
+            paymentMethod = PaymentMethod.Unknown;
+        }
+        else if (!isFreeDigitalRelease)
+        {
+            if (!Enum.TryParse<PaymentMethod>(
+                    (PaymentMethodComboBox.SelectedItem as ComboBoxItem)?.Tag as string,
+                    out var selectedPaymentMethod))
+            {
+                ShowInputError("Select Cash, Digital, or Unknown as the payment method.");
+                PaymentMethodComboBox.Focus();
+                return;
+            }
+
+            paymentMethod = selectedPaymentMethod;
         }
 
         Purchase = new PurchaseRecord
@@ -578,7 +586,7 @@ public partial class AddPurchaseWindow : Window
             Remark = remark,
             Price = price,
             Kind = purchaseKind,
-            PaymentMethod = isFreeDigitalRelease ? null : paymentMethod,
+            PaymentMethod = paymentMethod,
             IsUnknownPhysicalAlbum = isUnknownPhysicalAlbum,
             IsPriceUnknown = isPriceUnknown,
             IsFreeDigitalRelease = isFreeDigitalRelease,
@@ -817,7 +825,7 @@ public partial class AddPurchaseWindow : Window
         {
             PurchaseDatePicker.SelectedDate = null;
             StoreComboBox.Text = string.Empty;
-            SelectComboItem(PaymentMethodComboBox, nameof(PaymentMethod.Cash));
+            SelectComboItem(PaymentMethodComboBox, nameof(PaymentMethod.Unknown));
             ManualValidationCheckBox.IsChecked = false;
             PriceTextBox.Text = "Unknown";
         }

@@ -15,7 +15,8 @@ internal enum PurchaseKind
 internal enum PaymentMethod
 {
     Cash,
-    Digital
+    Digital,
+    Unknown
 }
 
 internal sealed class PurchaseRecord
@@ -202,6 +203,7 @@ internal static class PurchaseStore
 
             foreach (var purchase in legacyPurchases)
             {
+                NormalizeUnknownPhysicalPaymentMethod(purchase);
                 ValidatePurchase(purchase);
                 MigrateLegacyEvidence(purchase);
                 if (existingIds.Add(purchase.Id))
@@ -538,6 +540,7 @@ internal static class PurchaseStore
 
             var purchase = JsonSerializer.Deserialize<PurchaseRecord>(File.ReadAllText(purchasePath))
                 ?? throw new InvalidDataException($"The purchase record in \"{purchaseFolder}\" is empty or invalid.");
+            NormalizeUnknownPhysicalPaymentMethod(purchase);
             ValidatePurchase(purchase);
             MigrateLegacyEvidence(purchase);
             if (string.Equals(
@@ -619,7 +622,7 @@ internal static class PurchaseStore
 
         var purchaseDetailsInvalid = purchase.IsUnknownPhysicalAlbum
             ? purchase.Kind != PurchaseKind.Physical
-                || purchase.PaymentMethod != PaymentMethod.Cash
+                || purchase.PaymentMethod != PaymentMethod.Unknown
                 || purchase.PurchaseDate.HasValue
                 || !string.IsNullOrWhiteSpace(purchase.Store)
                 || purchase.Price.HasValue
@@ -642,6 +645,14 @@ internal static class PurchaseStore
             || purchase.Songs.Any(song => song is null || string.IsNullOrWhiteSpace(song.FilePath)))
         {
             throw new InvalidDataException("A purchase record contains invalid data.");
+        }
+    }
+
+    private static void NormalizeUnknownPhysicalPaymentMethod(PurchaseRecord? purchase)
+    {
+        if (purchase?.IsUnknownPhysicalAlbum == true && purchase.PaymentMethod == PaymentMethod.Cash)
+        {
+            purchase.PaymentMethod = PaymentMethod.Unknown;
         }
     }
 

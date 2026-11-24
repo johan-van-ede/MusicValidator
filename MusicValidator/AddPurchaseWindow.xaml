@@ -170,6 +170,7 @@
                       VerticalContentAlignment="Center"
                       Padding="8,0"
                       SelectionChanged="PaymentMethodComboBox_SelectionChanged">
+              <ComboBoxItem Content="Unknown" Tag="Unknown" />
               <ComboBoxItem Content="Cash" Tag="Cash" />
               <ComboBoxItem Content="Digital" Tag="Digital" />
             </ComboBox>

@@ -96,9 +96,9 @@ internal static class PurchaseChecker
             issues.Add("Unknown purchase details are only valid for a physical album.");
         }
 
-        if (purchase.IsUnknownPhysicalAlbum && purchase.PaymentMethod != PaymentMethod.Cash)
+        if (purchase.IsUnknownPhysicalAlbum && purchase.PaymentMethod != PaymentMethod.Unknown)
         {
-            issues.Add("An unknown physical album must use cash as the payment method.");
+            issues.Add("An unknown physical album must use Unknown as the payment method.");
         }
 
         var allEvidenceFilesValid = true;

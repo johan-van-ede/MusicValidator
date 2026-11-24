@@ -19,7 +19,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PurchaseRecord> _purchases = [];
     private readonly ICollectionView _musicView;
     private readonly HashSet<string> _assignedSongFileNames = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _validatedSongFileNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<ValidatedSongKey> _validatedSongs =
+        new(ValidatedSongKeyComparer.Instance);
     private readonly Dictionary<SongMetadataKey, PurchaseRecord> _purchasesBySongMetadata =
         new(SongMetadataKeyComparer.Instance);
     private AppSettings _settings = new();
@@ -319,8 +320,13 @@ public partial class MainWindow : Window
 
     private PurchaseRecord? FindValidatedPurchase(MusicTrack track)
     {
-        var fileName = Path.GetFileName(track.FilePath);
-        if (string.IsNullOrWhiteSpace(fileName))
+        if (!TryCreateValidatedSongKey(
+                track.FilePath,
+                track.TrackNumber,
+                track.Title,
+                track.Artist,
+                track.Album,
+                out var validatedSongKey))
         {
             return null;
         }
@@ -328,10 +334,14 @@ public partial class MainWindow : Window
         return _purchases.FirstOrDefault(purchase =>
             purchase.IsValidated
             && purchase.Songs.Any(song =>
-                string.Equals(
-                    Path.GetFileName(song.FilePath),
-                    fileName,
-                    StringComparison.OrdinalIgnoreCase)));
+                TryCreateValidatedSongKey(
+                    song.FilePath,
+                    song.TrackNumber,
+                    song.Title,
+                    song.Artist,
+                    song.Album,
+                    out var songKey)
+                && ValidatedSongKeyComparer.Instance.Equals(songKey, validatedSongKey)));
     }
 
     private PurchaseRecord? FindPurchaseByMetadata(MusicTrack track)
@@ -479,7 +489,14 @@ public partial class MainWindow : Window
 
                 var displayedTrack = track;
                 var fileName = Path.GetFileName(track.FilePath);
-                if (_validatedSongFileNames.Contains(fileName))
+                if (TryCreateValidatedSongKey(
+                        track.FilePath,
+                        track.TrackNumber,
+                        track.Title,
+                        track.Artist,
+                        track.Album,
+                        out var validatedSongKey)
+                    && _validatedSongs.Contains(validatedSongKey))
                 {
                     displayedTrack = track with { Status = "Validated" };
                 }
@@ -719,7 +736,7 @@ public partial class MainWindow : Window
     private void RebuildAssignedSongPaths()
     {
         _assignedSongFileNames.Clear();
-        _validatedSongFileNames.Clear();
+        _validatedSongs.Clear();
         _purchasesBySongMetadata.Clear();
         foreach (var purchase in _purchases)
         {
@@ -737,9 +754,16 @@ public partial class MainWindow : Window
                 }
 
                 _assignedSongFileNames.Add(fileName);
-                if (purchase.IsValidated)
+                if (purchase.IsValidated
+                    && TryCreateValidatedSongKey(
+                        song.FilePath,
+                        song.TrackNumber,
+                        song.Title,
+                        song.Artist,
+                        song.Album,
+                        out var validatedSongKey))
                 {
-                    _validatedSongFileNames.Add(fileName);
+                    _validatedSongs.Add(validatedSongKey);
                 }
             }
         }
@@ -748,7 +772,14 @@ public partial class MainWindow : Window
         {
             var track = _musicTracks[index];
             var fileName = Path.GetFileName(track.FilePath);
-            var isValidated = _validatedSongFileNames.Contains(fileName);
+            var isValidated = TryCreateValidatedSongKey(
+                    track.FilePath,
+                    track.TrackNumber,
+                    track.Title,
+                    track.Artist,
+                    track.Album,
+                    out var validatedSongKey)
+                && _validatedSongs.Contains(validatedSongKey);
             var isAssigned = _assignedSongFileNames.Contains(fileName);
             var isFound = !isValidated
                 && TryCreateSongMetadataKey(track.Title, track.Artist, out var metadataKey)
@@ -784,7 +815,45 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private static bool TryCreateValidatedSongKey(
+        string? filePath,
+        uint? trackNumber,
+        string? title,
+        string? artist,
+        string? album,
+        out ValidatedSongKey validatedSongKey)
+    {
+        var fileName = Path.GetFileName(filePath);
+        var normalizedTitle = title?.Trim();
+        var normalizedArtist = artist?.Trim();
+        var normalizedAlbum = album?.Trim();
+        if (string.IsNullOrWhiteSpace(fileName)
+            || !trackNumber.HasValue
+            || string.IsNullOrWhiteSpace(normalizedTitle)
+            || string.IsNullOrWhiteSpace(normalizedArtist)
+            || string.IsNullOrWhiteSpace(normalizedAlbum))
+        {
+            validatedSongKey = default;
+            return false;
+        }
+
+        validatedSongKey = new ValidatedSongKey(
+            fileName,
+            trackNumber.Value,
+            normalizedArtist,
+            normalizedTitle,
+            normalizedAlbum);
+        return true;
+    }
+
     private readonly record struct SongMetadataKey(string Title, string Artist);
+
+    private readonly record struct ValidatedSongKey(
+        string FileName,
+        uint TrackNumber,
+        string Artist,
+        string Title,
+        string Album);
 
     private sealed class SongMetadataKeyComparer : IEqualityComparer<SongMetadataKey>
     {
@@ -798,6 +867,26 @@ public partial class MainWindow : Window
             HashCode.Combine(
                 StringComparer.OrdinalIgnoreCase.GetHashCode(key.Title),
                 StringComparer.OrdinalIgnoreCase.GetHashCode(key.Artist));
+    }
+
+    private sealed class ValidatedSongKeyComparer : IEqualityComparer<ValidatedSongKey>
+    {
+        public static ValidatedSongKeyComparer Instance { get; } = new();
+
+        public bool Equals(ValidatedSongKey x, ValidatedSongKey y) =>
+            x.TrackNumber == y.TrackNumber
+            && string.Equals(x.FileName, y.FileName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Artist, y.Artist, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Title, y.Title, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Album, y.Album, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode(ValidatedSongKey key) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.FileName),
+                key.TrackNumber,
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Artist),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Title),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Album));
     }
 
     private void ClearMusicFolder()
