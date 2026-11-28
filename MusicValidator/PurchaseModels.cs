@@ -40,6 +40,7 @@ internal sealed class PurchaseRecord
     public string? PurchaseProofNativeFile { get; set; }
     public string? FreeReleaseProofPdfFile { get; set; }
     public string? FreeReleaseProofNativeFile { get; set; }
+    public List<string> DigitalMusicFiles { get; set; } = [];
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PossessionProofFile { get; set; }
@@ -75,6 +76,9 @@ internal sealed class PurchaseRecord
 
     [JsonIgnore]
     public string? FreeReleaseProofNativeSourcePath { get; set; }
+
+    [JsonIgnore]
+    public List<string> DigitalMusicSourcePaths { get; set; } = [];
 
     [JsonIgnore]
     public int SongCount => Songs.Count;
@@ -254,9 +258,9 @@ internal static class PurchaseStore
                 ? existingPurchase!.StorageFolderName!
                 : CreateFolderName(purchase, existingNames);
             var purchaseFolder = Path.Combine(root, folderName);
-            var hasSelectedEvidence = HasSelectedEvidence(purchase);
+            var hasSelectedFiles = HasSelectedAttachments(purchase);
             if (hasExistingPurchase
-                && !hasSelectedEvidence
+                && !hasSelectedFiles
                 && AreEquivalentPurchases(purchase, existingPurchase!))
             {
                 purchase.StorageFolderName = folderName;
@@ -275,6 +279,7 @@ internal static class PurchaseStore
                 purchase.FreeReleaseProofPdfFile,
                 purchase.FreeReleaseProofNativeFile
             };
+            var oldDigitalMusicFiles = purchase.DigitalMusicFiles.ToList();
             var copiedFiles = new List<string>();
             try
             {
@@ -334,6 +339,11 @@ internal static class PurchaseStore
                     purchase,
                     "Proof of free release",
                     copiedFiles);
+                purchase.DigitalMusicFiles = CopyDigitalMusicIfSelected(
+                    purchase.DigitalMusicSourcePaths,
+                    purchase.DigitalMusicFiles,
+                    purchaseFolder,
+                    copiedFiles);
 
                 var purchasePath = Path.Combine(purchaseFolder, CreatePurchaseDataFileName(purchase));
                 var temporaryPath = $"{purchasePath}.tmp";
@@ -349,6 +359,7 @@ internal static class PurchaseStore
                 purchase.PurchaseProofNativeSourcePath = null;
                 purchase.FreeReleaseProofPdfSourcePath = null;
                 purchase.FreeReleaseProofNativeSourcePath = null;
+                purchase.DigitalMusicSourcePaths.Clear();
                 purchase.StorageFolderName = folderName;
                 existingNames.Add(folderName);
                 changedPurchaseIds.Add(purchase.Id);
@@ -363,12 +374,19 @@ internal static class PurchaseStore
                 purchase.PurchaseProofNativeFile = oldProofFiles[5];
                 purchase.FreeReleaseProofPdfFile = oldProofFiles[6];
                 purchase.FreeReleaseProofNativeFile = oldProofFiles[7];
+                purchase.DigitalMusicFiles = oldDigitalMusicFiles;
                 foreach (var copiedFile in copiedFiles)
                 {
                     if (File.Exists(copiedFile))
                     {
                         File.Delete(copiedFile);
                     }
+                }
+
+                var musicFolder = Path.Combine(purchaseFolder, "music");
+                if (Directory.Exists(musicFolder) && !Directory.EnumerateFileSystemEntries(musicFolder).Any())
+                {
+                    Directory.Delete(musicFolder);
                 }
 
                 throw;
@@ -378,7 +396,7 @@ internal static class PurchaseStore
         return changedPurchaseIds;
     }
 
-    private static bool HasSelectedEvidence(PurchaseRecord purchase) =>
+    private static bool HasSelectedAttachments(PurchaseRecord purchase) =>
         !string.IsNullOrWhiteSpace(purchase.PossessionProofPdfSourcePath)
         || !string.IsNullOrWhiteSpace(purchase.PossessionProofNativeSourcePath)
         || !string.IsNullOrWhiteSpace(purchase.PaymentProofPdfSourcePath)
@@ -386,7 +404,8 @@ internal static class PurchaseStore
         || !string.IsNullOrWhiteSpace(purchase.PurchaseProofPdfSourcePath)
         || !string.IsNullOrWhiteSpace(purchase.PurchaseProofNativeSourcePath)
         || !string.IsNullOrWhiteSpace(purchase.FreeReleaseProofPdfSourcePath)
-        || !string.IsNullOrWhiteSpace(purchase.FreeReleaseProofNativeSourcePath);
+        || !string.IsNullOrWhiteSpace(purchase.FreeReleaseProofNativeSourcePath)
+        || purchase.DigitalMusicSourcePaths.Count > 0;
 
     private static bool AreEquivalentPurchases(PurchaseRecord purchase, PurchaseRecord existingPurchase)
     {
@@ -458,6 +477,10 @@ internal static class PurchaseStore
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Select(path => GetEvidenceFilePath(folderPath, storedPurchase, path!))
             .ToList();
+        var digitalMusicFiles = (storedPurchase.DigitalMusicFiles ?? [])
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => GetDigitalMusicFilePath(folderPath, storedPurchase, path))
+            .ToList();
         foreach (var evidenceFile in evidenceFiles)
         {
             if (File.Exists(evidenceFile))
@@ -466,11 +489,25 @@ internal static class PurchaseStore
             }
         }
 
+        foreach (var digitalMusicFile in digitalMusicFiles)
+        {
+            if (File.Exists(digitalMusicFile))
+            {
+                File.Delete(digitalMusicFile);
+            }
+        }
+
         File.Delete(purchasePath);
         var evidenceFolder = Path.Combine(purchaseFolder, "evidence");
         if (Directory.Exists(evidenceFolder) && !Directory.EnumerateFileSystemEntries(evidenceFolder).Any())
         {
             Directory.Delete(evidenceFolder);
+        }
+
+        var musicFolder = Path.Combine(purchaseFolder, "music");
+        if (Directory.Exists(musicFolder) && !Directory.EnumerateFileSystemEntries(musicFolder).Any())
+        {
+            Directory.Delete(musicFolder);
         }
 
         if (!Directory.EnumerateFileSystemEntries(purchaseFolder).Any())
@@ -484,25 +521,40 @@ internal static class PurchaseStore
     public static string GetEvidenceFilePath(
         string folderPath,
         PurchaseRecord purchase,
-        string relativeFilePath)
+        string relativeFilePath) =>
+        GetPurchaseAssetFilePath(folderPath, purchase, relativeFilePath, "evidence", "evidence");
+
+    public static string GetDigitalMusicFilePath(
+        string folderPath,
+        PurchaseRecord purchase,
+        string relativeFilePath) =>
+        GetPurchaseAssetFilePath(folderPath, purchase, relativeFilePath, "music", "digital music");
+
+    private static string GetPurchaseAssetFilePath(
+        string folderPath,
+        PurchaseRecord purchase,
+        string relativeFilePath,
+        string assetFolderName,
+        string assetLabel)
     {
         if (string.IsNullOrWhiteSpace(purchase.StorageFolderName)
             || string.IsNullOrWhiteSpace(relativeFilePath)
             || Path.IsPathRooted(relativeFilePath))
         {
-            throw new InvalidDataException("The evidence file path is invalid.");
+            throw new InvalidDataException($"The {assetLabel} file path is invalid.");
         }
 
         var purchaseFolder = Path.GetFullPath(Path.Combine(GetRootPath(folderPath), purchase.StorageFolderName));
-        var evidenceFolder = Path.GetFullPath(Path.Combine(purchaseFolder, "evidence"))
+        var assetFolder = Path.GetFullPath(Path.Combine(purchaseFolder, assetFolderName))
             + Path.DirectorySeparatorChar;
-        var evidenceFile = Path.GetFullPath(Path.Combine(purchaseFolder, relativeFilePath));
-        if (!evidenceFile.StartsWith(evidenceFolder, StringComparison.OrdinalIgnoreCase))
+        var assetFile = Path.GetFullPath(Path.Combine(purchaseFolder, relativeFilePath));
+        if (!assetFile.StartsWith(assetFolder, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("The evidence file must be inside the purchase folder's evidence directory.");
+            throw new InvalidDataException(
+                $"The {assetLabel} file must be inside the purchase folder's {assetFolderName} directory.");
         }
 
-        return evidenceFile;
+        return assetFile;
     }
 
     public static string GetPurchaseReportFilePath(string folderPath, PurchaseRecord purchase)
@@ -642,10 +694,31 @@ internal static class PurchaseStore
             || freeReleaseDetailsInvalid
             || purchase.Remark is null
             || purchase.Songs is null
+            || purchase.DigitalMusicFiles is null
+            || purchase.DigitalMusicSourcePaths is null
+            || (purchase.Kind != PurchaseKind.Digital && purchase.DigitalMusicFiles.Count > 0)
+            || (purchase.Kind != PurchaseKind.Digital && purchase.DigitalMusicSourcePaths.Count > 0)
+            || purchase.DigitalMusicFiles.Any(path => !IsValidDigitalMusicRelativePath(path))
             || purchase.Songs.Any(song => song is null || string.IsNullOrWhiteSpace(song.FilePath)))
         {
             throw new InvalidDataException("A purchase record contains invalid data.");
         }
+    }
+
+    private static bool IsValidDigitalMusicRelativePath(string? relativeFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativeFilePath) || Path.IsPathRooted(relativeFilePath))
+        {
+            return false;
+        }
+
+        var normalizedPath = relativeFilePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        var pathParts = normalizedPath.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        return pathParts.Length == 2
+            && string.Equals(pathParts[0], "music", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(pathParts[1], ".", StringComparison.Ordinal)
+            && !string.Equals(pathParts[1], "..", StringComparison.Ordinal)
+            && string.Equals(Path.GetFileName(pathParts[1]), pathParts[1], StringComparison.Ordinal);
     }
 
     private static void NormalizeUnknownPhysicalPaymentMethod(PurchaseRecord? purchase)
@@ -733,6 +806,51 @@ internal static class PurchaseStore
         File.Copy(sourcePath, destinationPath);
         copiedFiles.Add(destinationPath);
         return Path.Combine("evidence", fileName);
+    }
+
+    private static List<string> CopyDigitalMusicIfSelected(
+        IEnumerable<string> sourcePaths,
+        IEnumerable<string> existingRelativePaths,
+        string purchaseFolder,
+        ICollection<string> copiedFiles)
+    {
+        var relativePaths = existingRelativePaths.ToList();
+        var usedPaths = relativePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var musicFolder = Path.Combine(purchaseFolder, "music");
+
+        foreach (var sourcePath in sourcePaths)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("A selected digital music file could not be found.", sourcePath);
+            }
+
+            var extension = Path.GetExtension(sourcePath);
+            if (!AppSettings.SupportedAudioExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("A selected digital music file has an unsupported audio format.");
+            }
+
+            var baseFileName = Path.GetFileNameWithoutExtension(sourcePath);
+            var fileName = Path.GetFileName(sourcePath);
+            var relativePath = Path.Combine("music", fileName);
+            var destinationPath = Path.Combine(purchaseFolder, relativePath);
+            var suffix = 2;
+            while (usedPaths.Contains(relativePath) || File.Exists(destinationPath))
+            {
+                fileName = $"{baseFileName} ({suffix++}){extension}";
+                relativePath = Path.Combine("music", fileName);
+                destinationPath = Path.Combine(purchaseFolder, relativePath);
+            }
+
+            Directory.CreateDirectory(musicFolder);
+            File.Copy(sourcePath, destinationPath);
+            copiedFiles.Add(destinationPath);
+            relativePaths.Add(relativePath);
+            usedPaths.Add(relativePath);
+        }
+
+        return relativePaths;
     }
 
     private static string CreateFolderName(PurchaseRecord purchase, HashSet<string> existingNames)

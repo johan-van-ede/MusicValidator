@@ -226,6 +226,32 @@
                   Checked="FreeDigitalReleaseCheckBox_Changed"
                   Unchecked="FreeDigitalReleaseCheckBox_Changed" />
 
+        <StackPanel x:Name="DigitalMusicBackupPanel" Visibility="Collapsed" Margin="0,18,0,0">
+          <TextBlock Text="DIGITAL MUSIC BACKUP (OPTIONAL)"
+                     Foreground="{StaticResource MutedBrush}"
+                     FontSize="10"
+                     Margin="0,0,0,7" />
+          <TextBlock Text="Selected audio files are copied into this purchase's music folder."
+                     Foreground="{StaticResource MutedBrush}"
+                     FontSize="11"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,7" />
+          <DockPanel LastChildFill="True">
+            <Button x:Name="SelectDigitalMusicFilesButton"
+                    Content="Select files"
+                    ToolTip="Select audio files to copy into this purchase"
+                    Padding="8,5"
+                    Margin="6,0,0,0"
+                    DockPanel.Dock="Right"
+                    Click="SelectDigitalMusicFiles_Click" />
+            <TextBlock x:Name="DigitalMusicBackupFileText"
+                       Text="No files selected"
+                       Foreground="{StaticResource MutedBrush}"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap" />
+          </DockPanel>
+        </StackPanel>
+
         <StackPanel x:Name="FreeReleaseProofPanel" Visibility="Collapsed" Margin="0,18,0,0">
           <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
             <TextBlock Text="PROOF OF FREE RELEASE"

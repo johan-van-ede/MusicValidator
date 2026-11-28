@@ -19,6 +19,7 @@ public partial class AddPurchaseWindow : Window
     private string? _purchaseProofNativeSourcePath;
     private string? _freeReleaseProofPdfSourcePath;
     private string? _freeReleaseProofNativeSourcePath;
+    private readonly List<string> _digitalMusicSourcePaths = [];
 
     internal PurchaseRecord? Purchase { get; private set; }
 
@@ -481,6 +482,34 @@ public partial class AddPurchaseWindow : Window
         }
     }
 
+    private void SelectDigitalMusicFiles_Click(object sender, RoutedEventArgs e)
+    {
+        var patterns = string.Join(
+            ";",
+            AppSettings.SupportedAudioExtensions.Select(extension => $"*{extension}"));
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select digital music files to back up",
+            Filter = $"Supported audio files|{patterns}",
+            Multiselect = true,
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        foreach (var filePath in dialog.FileNames)
+        {
+            if (!_digitalMusicSourcePaths.Contains(filePath, StringComparer.OrdinalIgnoreCase))
+            {
+                _digitalMusicSourcePaths.Add(filePath);
+            }
+        }
+
+        UpdateDigitalMusicBackupFileText();
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var isUnknownPhysicalAlbum = UnknownPhysicalAlbumCheckBox.IsChecked == true;
@@ -610,6 +639,12 @@ public partial class AddPurchaseWindow : Window
             PurchaseProofNativeSourcePath = _purchaseProofNativeSourcePath,
             FreeReleaseProofPdfSourcePath = _freeReleaseProofPdfSourcePath,
             FreeReleaseProofNativeSourcePath = _freeReleaseProofNativeSourcePath,
+            DigitalMusicFiles = purchaseKind == PurchaseKind.Digital
+                ? existingPurchase?.DigitalMusicFiles.ToList() ?? []
+                : [],
+            DigitalMusicSourcePaths = purchaseKind == PurchaseKind.Digital
+                ? [.. _digitalMusicSourcePaths]
+                : [],
             Songs = existingPurchase?.Songs.ToList() ?? [],
             StorageFolderName = existingPurchase?.StorageFolderName
         };
@@ -680,6 +715,7 @@ public partial class AddPurchaseWindow : Window
         UpdatePaymentProofFileText();
         UpdatePurchaseProofFileText();
         UpdateFreeReleaseProofFileText();
+        UpdateDigitalMusicBackupFileText();
     }
 
     private static void SelectComboItem(ComboBox comboBox, string? value)
@@ -731,6 +767,18 @@ public partial class AddPurchaseWindow : Window
         UpdateProofButton(FreeReleaseProofFileButton, "File", !string.IsNullOrWhiteSpace(nativePath));
     }
 
+    private void UpdateDigitalMusicBackupFileText()
+    {
+        var fileNames = (_existingPurchase?.DigitalMusicFiles ?? [])
+            .Select(Path.GetFileName)
+            .Concat(_digitalMusicSourcePaths.Select(Path.GetFileName))
+            .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+            .ToList();
+        DigitalMusicBackupFileText.Text = fileNames.Count == 0
+            ? "No files selected"
+            : string.Join(Environment.NewLine, fileNames);
+    }
+
     private static void UpdateProofButton(Button button, string label, bool isSelected)
     {
         button.Content = isSelected ? $"{label} ✓" : label;
@@ -769,6 +817,7 @@ public partial class AddPurchaseWindow : Window
         PossessionProofPanel.Visibility = purchaseKind == nameof(PurchaseKind.Physical)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        DigitalMusicBackupPanel.Visibility = isDigital ? Visibility.Visible : Visibility.Collapsed;
         FreeDigitalReleaseCheckBox.Visibility = isDigital
             && (_existingPurchase is null || _existingPurchase.IsFreeDigitalRelease)
                 ? Visibility.Visible
