@@ -12,11 +12,11 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("MusicValidator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("0.10.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.10.0-test.1+eacda8c78fb48ae4aa8386b5d3ed236113a1eb94")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("0.11.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.11\r\n  .0-test.1+e818c44dbf8a5bdac92458fc77a986d0ab5119ca")]
 [assembly: System.Reflection.AssemblyProductAttribute("MusicValidator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MusicValidator")]
-[assembly: System.Reflection.AssemblyVersionAttribute("0.10.0.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("0.11.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
 

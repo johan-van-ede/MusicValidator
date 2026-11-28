@@ -187,6 +187,7 @@ internal static class PurchaseStore
 {
     private const string LegacyFileName = "purchases.json";
     private const string LegacyPurchaseFileName = "purchase.json";
+    private const string UnknownPurchasesFolderName = "Onbekend";
     private static readonly JsonSerializerOptions PurchaseJsonOptions = new() { WriteIndented = true };
 
     public static List<PurchaseRecord> Load(string folderPath)
@@ -245,9 +246,8 @@ internal static class PurchaseStore
         var existingPurchases = ReadPurchaseFolders(root)
             .ToDictionary(purchase => purchase.Id);
         var existingNames = Directory
-            .EnumerateDirectories(root)
-            .Select(Path.GetFileName)
-            .OfType<string>()
+            .EnumerateDirectories(root, "*", SearchOption.AllDirectories)
+            .Select(directory => Path.GetRelativePath(root, directory))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var changedPurchaseIds = new HashSet<Guid>();
 
@@ -430,14 +430,7 @@ internal static class PurchaseStore
     {
         var root = GetRootPath(folderPath);
         var folderName = purchase.StorageFolderName;
-        if (string.IsNullOrWhiteSpace(folderName)
-            || folderName is "." or ".."
-            || !string.Equals(Path.GetFileName(folderName), folderName, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException("The purchase folder name is invalid.");
-        }
-
-        var purchaseFolder = Path.Combine(root, folderName);
+        var purchaseFolder = GetPurchaseFolderPath(folderPath, folderName);
         var purchasePath = FindPurchaseDataFile(purchaseFolder);
         if (purchasePath is null)
         {
@@ -515,6 +508,22 @@ internal static class PurchaseStore
             Directory.Delete(purchaseFolder);
         }
 
+        var unknownFolder = Path.GetDirectoryName(purchaseFolder);
+        if (unknownFolder is not null
+            && string.Equals(
+                Path.GetDirectoryName(unknownFolder),
+                root,
+                StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                Path.GetFileName(unknownFolder),
+                UnknownPurchasesFolderName,
+                StringComparison.OrdinalIgnoreCase)
+            && Directory.Exists(unknownFolder)
+            && !Directory.EnumerateFileSystemEntries(unknownFolder).Any())
+        {
+            Directory.Delete(unknownFolder);
+        }
+
         purchase.StorageFolderName = null;
     }
 
@@ -544,7 +553,7 @@ internal static class PurchaseStore
             throw new InvalidDataException($"The {assetLabel} file path is invalid.");
         }
 
-        var purchaseFolder = Path.GetFullPath(Path.Combine(GetRootPath(folderPath), purchase.StorageFolderName));
+        var purchaseFolder = GetPurchaseFolderPath(folderPath, purchase.StorageFolderName);
         var assetFolder = Path.GetFullPath(Path.Combine(purchaseFolder, assetFolderName))
             + Path.DirectorySeparatorChar;
         var assetFile = Path.GetFullPath(Path.Combine(purchaseFolder, relativeFilePath));
@@ -559,18 +568,8 @@ internal static class PurchaseStore
 
     public static string GetPurchaseReportFilePath(string folderPath, PurchaseRecord purchase)
     {
-        var folderName = purchase.StorageFolderName;
-        if (string.IsNullOrWhiteSpace(folderName)
-            || folderName is "." or ".."
-            || !string.Equals(Path.GetFileName(folderName), folderName, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException("The purchase folder name is invalid.");
-        }
-
-        return Path.Combine(
-            GetRootPath(folderPath),
-            folderName,
-            CreatePurchaseReportFileName(purchase));
+        var purchaseFolder = GetPurchaseFolderPath(folderPath, purchase.StorageFolderName);
+        return Path.Combine(purchaseFolder, CreatePurchaseReportFileName(purchase));
     }
 
     private static List<PurchaseRecord> ReadPurchaseFolders(string root)
@@ -582,8 +581,20 @@ internal static class PurchaseStore
 
         var purchases = new List<PurchaseRecord>();
         var identifiers = new HashSet<Guid>();
-        foreach (var purchaseFolder in Directory.EnumerateDirectories(root))
+        var purchaseFolders = Directory
+            .EnumerateDirectories(root, "*", SearchOption.AllDirectories)
+            .ToList();
+        var existingFolders = purchaseFolders
+            .Select(directory => Path.GetRelativePath(root, directory))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var originalPurchaseFolder in purchaseFolders)
         {
+            if (!Directory.Exists(originalPurchaseFolder))
+            {
+                continue;
+            }
+
+            var purchaseFolder = originalPurchaseFolder;
             var purchasePath = FindPurchaseDataFile(purchaseFolder);
             if (purchasePath is null)
             {
@@ -610,12 +621,17 @@ internal static class PurchaseStore
                 File.Move(purchasePath, migratedPath);
             }
 
+            if (!purchase.PurchaseDate.HasValue)
+            {
+                purchaseFolder = MoveUnknownPurchaseFolder(root, purchaseFolder, existingFolders);
+            }
+
             if (!identifiers.Add(purchase.Id))
             {
                 throw new InvalidDataException($"Duplicate purchase identifier found in \"{purchaseFolder}\".");
             }
 
-            purchase.StorageFolderName = Path.GetFileName(purchaseFolder);
+            purchase.StorageFolderName = Path.GetRelativePath(root, purchaseFolder);
             purchases.Add(purchase);
         }
 
@@ -855,14 +871,16 @@ internal static class PurchaseStore
 
     private static string CreateFolderName(PurchaseRecord purchase, HashSet<string> existingNames)
     {
-        if (purchase.IsUnknownPhysicalAlbum)
+        if (!purchase.PurchaseDate.HasValue)
         {
             var unknownBaseName = CreateUnknownPhysicalAlbumName(purchase);
-            var unknownCandidate = unknownBaseName;
+            var unknownCandidate = Path.Combine(UnknownPurchasesFolderName, unknownBaseName);
             var unknownSuffix = 2;
             while (!existingNames.Add(unknownCandidate))
             {
-                unknownCandidate = $"{unknownBaseName} - {unknownSuffix++}";
+                unknownCandidate = Path.Combine(
+                    UnknownPurchasesFolderName,
+                    $"{unknownBaseName} - {unknownSuffix++}");
             }
 
             return unknownCandidate;
@@ -926,6 +944,58 @@ internal static class PurchaseStore
         }
 
         return Path.GetFullPath(folderPath);
+    }
+
+    private static string GetPurchaseFolderPath(string folderPath, string? relativeFolderName)
+    {
+        if (string.IsNullOrWhiteSpace(relativeFolderName) || Path.IsPathRooted(relativeFolderName))
+        {
+            throw new InvalidDataException("The purchase folder name is invalid.");
+        }
+
+        var root = GetRootPath(folderPath);
+        var purchaseFolder = Path.GetFullPath(Path.Combine(root, relativeFolderName));
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        if (!purchaseFolder.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The purchase folder must be inside the purchase storage folder.");
+        }
+
+        return purchaseFolder;
+    }
+
+    private static string MoveUnknownPurchaseFolder(
+        string root,
+        string purchaseFolder,
+        HashSet<string> existingFolders)
+    {
+        var relativeFolderName = Path.GetRelativePath(root, purchaseFolder);
+        var pathParts = relativeFolderName.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+        if (pathParts.Length > 0
+            && string.Equals(pathParts[0], UnknownPurchasesFolderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return purchaseFolder;
+        }
+
+        var originalFolderName = Path.GetFileName(purchaseFolder);
+        var folderName = Path.Combine(UnknownPurchasesFolderName, originalFolderName);
+        var candidate = folderName;
+        var suffix = 2;
+        while (existingFolders.Contains(candidate)
+            || Directory.Exists(Path.Combine(root, candidate)))
+        {
+            candidate = Path.Combine(UnknownPurchasesFolderName, $"{originalFolderName} - {suffix++}");
+        }
+
+        Directory.CreateDirectory(Path.Combine(root, UnknownPurchasesFolderName));
+        var destination = Path.Combine(root, candidate);
+        Directory.Move(purchaseFolder, destination);
+        existingFolders.Add(candidate);
+        return destination;
     }
 
     private static string GetLegacyArchivePath(string root)
